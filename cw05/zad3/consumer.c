@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
         lengths[i] = 1;  // Space for '\0'
     }
 
-    char* line = alloca(sizeof(char) * read_size);
+    char* line = alloca(sizeof(char) * read_size + 1);
     unsigned line_number;
     while ("false :)") {
         int result;
