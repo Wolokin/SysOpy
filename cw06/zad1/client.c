@@ -56,43 +56,45 @@ bool is_input() {
     return false;
 }
 
-void disconnect_handler() {
+void disconnect_command_handler() {
+    printf("Disconnecting\n");
     default_msg.mtype = DISCONNECT;
     msgsnd(server_queue, &default_msg, DEF_SIZE, 0);
 }
 
+void disconnect_msg_handler(int queue) {
+    printf("Disconnecting\n");
+    default_msg.mtype = DISCONNECT;
+    msgsnd(queue, &default_msg, DEF_SIZE, 0);
+    msgsnd(server_queue, &default_msg, DEF_SIZE, 0);
+}
+
 void chat_loop(int queue) {
-    printf("entered chat\n");
+    system("clear");
+    printf("Entered chat mode\n");
     msgbuf buf;
     char* line = NULL;
     size_t size = 0;
     while (true) {
         if (msgrcv(client_queue, &buf, MAX_MSG, STOP, IPC_NOWAIT) >= 0) {
-            printf("detected STOP\n");
             server_stop_handler();
         } else if (msgrcv(client_queue, &buf, MAX_MSG, DISCONNECT,
                           IPC_NOWAIT) >= 0) {
-            printf("detected DISCONNECT\n");
-            disconnect_handler();
+            disconnect_command_handler();
             break;
         } else if (msgrcv(client_queue, &buf, MAX_MSG, TEXT, IPC_NOWAIT) >= 0) {
-            printf("detected TEXT\n");
-            printf("%s", buf.text);
+            printf("> %s", buf.text);
         } else if (is_input()) {
             getline(&line, &size, stdin);
             if (strncmp("LIST", line, strlen("LIST")) == 0) {
                 list_handler();
             } else if (strncmp("CONNECT", line, strlen("CONNECT")) == 0) {
-                /* strsep(&line, " "); */
-                /* int id = strtol(line, NULL, 10); */
-                /* connect_initiator_handler(id); */
                 printf("Close current connection first!\n");
             } else if (strncmp("DISCONNECT", line, strlen("DISCONNECT")) == 0) {
-                default_msg.mtype = DISCONNECT;
-                msgsnd(queue, &default_msg, DEF_SIZE, 0);
-                msgsnd(server_queue, &default_msg, DEF_SIZE, 0);
+                disconnect_msg_handler(queue);
                 break;
             } else if (strncmp("STOP", line, strlen("STOP")) == 0) {
+                disconnect_msg_handler(queue);
                 stop_handler();
             } else {
                 buf.mtype = TEXT;
@@ -109,10 +111,12 @@ void connect_command_handler(int id) {
     msg.mtype = CONNECT;
     sprintf(msg.text, "%d %d", assigned_id, id);
     msgsnd(server_queue, &msg, DEF_SIZE, 0);
-    printf("sent\n");
     msgrcv(client_queue, &msg, MAX_MSG, CONNECT, 0);
-    printf("recv\n");
     int queue = strtol(msg.text, NULL, 10);
+    if (queue == server_queue) {
+        printf("Requested client is not available...\n");
+        return;
+    }
     chat_loop(queue);
 }
 
@@ -124,11 +128,16 @@ void connect_msg_handler(msgbuf* buf) {
 void int_catcher(int _signo) { stop_handler(); }
 
 int main(void) {
-    client_key = get_random_key();
-    client_queue = msgget(client_key, IPC_CREAT | IPC_EXCL | 0666);
+    struct timespec ts = {0, 1000000};
+    for (int i = 0; i < MAX_RETRY; ++i) {
+        client_key = get_random_key();
+        nanosleep(&ts, NULL);
+        client_queue = msgget(client_key, IPC_CREAT | IPC_EXCL | 0666);
+        if (client_queue != -1) break;
+    }
     if (client_queue == -1) {
         if (errno == EEXIST) {
-            perror("Duplicate descriptor, please try again...\n");
+            perror("Could not get id, queues may be full...\n");
             exit(1);
         } else {
             perror(strerror(errno));
@@ -149,11 +158,9 @@ int main(void) {
     msgbuf buf;
     while (true) {
         if (msgrcv(client_queue, &buf, MAX_MSG, STOP, IPC_NOWAIT) >= 0) {
-            printf("detected STOP\n");
             server_stop_handler();
         } else if (msgrcv(client_queue, &buf, MAX_MSG, CONNECT, IPC_NOWAIT) >=
                    0) {
-            printf("detected CONNECT\n");
             connect_msg_handler(&buf);
         } else if (is_input()) {
             char* line = NULL;

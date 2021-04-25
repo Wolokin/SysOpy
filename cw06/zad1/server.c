@@ -15,16 +15,19 @@ void remove_queue() { msgctl(server_queue, IPC_RMID, NULL); }
 
 void stop_handler(msgbuf* buf) {
     int id = strtol(buf->text, NULL, 10);
+    printf("received STOP command from client %d\n", id);
     clients[id].id = FREE;
+    clients[id].is_available = false;
     --clients_count;
     printf("Client count %d\n", clients_count);
 }
 
 void init_handler(msgbuf* buf) {
-    printf("INIT\n");
+    printf("received INIT command\n");
     key_t key = strtol(buf->text, NULL, 10);
     for (int id = 0; id < MAX_CLIENTS; ++id) {
         if (clients[id].id == FREE) {
+            printf("Assigned id: %d\n", id);
             clients[id].id = id;
             clients[id].queue = msgget(key, 0);
             clients[id].is_available = true;
@@ -41,11 +44,13 @@ void init_handler(msgbuf* buf) {
 void disconnect_handler(msgbuf* buf) {
     int id;
     sscanf(buf->text, "%d", &id);
+    printf("received DISCONNECT command from client %d\n", id);
     clients[id].is_available = true;
 }
 
 void list_handler(msgbuf* buf) {
     int id = strtol(buf->text, NULL, 10);
+    printf("received LIST command from client %d\n", id);
     msgbuf reply;
     reply.mtype = TEXT;
     char* strbuilder = reply.text;
@@ -59,12 +64,18 @@ void list_handler(msgbuf* buf) {
 }
 
 void connect_handler(msgbuf* buf) {
-    int id1, id2;
+    unsigned id1, id2;
     sscanf(buf->text, "%d %d", &id1, &id2);
-    clients[id1].is_available = false;
-    clients[id2].is_available = false;
+    printf("received CONNECT command from client %d to %d\n", id1, id2);
     msgbuf msg;
     msg.mtype = CONNECT;
+    if (!clients[id2].is_available || id2 > MAX_CLIENTS) {
+        sprintf(msg.text, "%d", server_queue);
+        msgsnd(clients[id1].queue, &msg, DEF_SIZE, 0);
+        return;
+    }
+    clients[id1].is_available = false;
+    clients[id2].is_available = false;
     sprintf(msg.text, "%d", clients[id2].queue);
     msgsnd(clients[id1].queue, &msg, DEF_SIZE, 0);
     sprintf(msg.text, "%d", clients[id1].queue);
@@ -94,6 +105,7 @@ int main(void) {
 
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         clients[i].id = FREE;
+        clients[i].is_available = false;
     }
 
     struct sigaction act;
@@ -104,24 +116,18 @@ int main(void) {
 
     msgbuf buf;
     while (true) {
-        sleep(3);
-        printf("main loop\n");
+        sleep(1);
         if (msgrcv(server_queue, &buf, MAX_MSG, STOP, IPC_NOWAIT) >= 0) {
-            printf("received STOP\n");
             stop_handler(&buf);
         } else if (msgrcv(server_queue, &buf, MAX_MSG, DISCONNECT,
                           IPC_NOWAIT) >= 0) {
-            printf("received DISCONNECT\n");
             disconnect_handler(&buf);
         } else if (msgrcv(server_queue, &buf, MAX_MSG, LIST, IPC_NOWAIT) >= 0) {
-            printf("received LIST\n");
             list_handler(&buf);
         } else if (msgrcv(server_queue, &buf, MAX_MSG, CONNECT, IPC_NOWAIT) >=
                    0) {
-            printf("received CONNECT\n");
             connect_handler(&buf);
         } else if (msgrcv(server_queue, &buf, MAX_MSG, INIT, IPC_NOWAIT) >= 0) {
-            printf("received INIT\n");
             init_handler(&buf);
         }
     }

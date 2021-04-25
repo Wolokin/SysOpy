@@ -15,18 +15,19 @@
 #include <sys/times.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 // Queue specs
 #define get_server_key() ftok(getenv("HOME"), PROJ_SERVER)
 #define get_random_key() \
-    (srand(getpid()), ftok(getenv("HOME"), PROJ[rand() % PROJ_SIZE]))
+    (srand(getpid()), ftok(getenv("HOME"), rand() % MAX_CLIENTS))
 
-#define MAX_CLIENTS 6
+#define MAX_CLIENTS 255
+#define MAX_RETRY 100
 
 #define PROJ_SERVER 's'
-#define PROJ_SIZE 10
-char PROJ[PROJ_SIZE] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'};
+char PROJ[MAX_CLIENTS] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'};
 
 #define MAX_MSG 2000
 #define DEF_SIZE 12  // Size of default message consisting only of a number
