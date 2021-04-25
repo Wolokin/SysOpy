@@ -141,8 +141,9 @@ void chat_loop(int queue) {
                 disconnect_msg_handler(queue);
                 stop_handler();
             } else {
-                strncpy(textmsg.text, line, TEXT_SZ);
-                msgsnd(queue, &textmsg, TEXT_SZ, 0);
+                int length = strnlen(line, TEXT_SZ) + 1;
+                strncpy(textmsg.text, line, length);
+                msgsnd(queue, &textmsg, length, 0);
             }
         }
     }
