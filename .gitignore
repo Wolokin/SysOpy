@@ -54,3 +54,9 @@ dkms.conf
 ##############################################
 # Comments
 *.txt
+
+# Archives
+*.tar.gz
+
+# emacs files
+*~

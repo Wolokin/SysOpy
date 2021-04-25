@@ -29,13 +29,23 @@
 #define PROJ_SERVER 's'
 char PROJ[MAX_CLIENTS] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'};
 
-#define MAX_MSG 2000
-#define DEF_SIZE 12  // Size of default message consisting only of a number
-
-typedef struct msgbuf {
+#define INT1_SZ sizeof(int)
+typedef struct msgint1 {
     long mtype;
-    char text[MAX_MSG];
-} msgbuf;
+    int data[1];
+} msgint1;
+
+#define INT2_SZ sizeof(int) * 2
+typedef struct msgint2 {
+    long mtype;
+    int data[2];
+} msgint2;
+
+#define TEXT_SZ sizeof(char) * 2000
+typedef struct msgtext {
+    long mtype;
+    char text[2000];
+} msgtext;
 
 // Commands
 #define STOP 1
