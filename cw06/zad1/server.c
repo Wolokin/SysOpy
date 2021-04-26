@@ -11,10 +11,6 @@ int server_queue;
 client clients[MAX_CLIENTS];
 int clients_count = 0;
 
-// Non blocking msgrcv, true if msg was in queue
-#define receive_msg(type, msg, size) \
-    (msgrcv(server_queue, &msg, size, type, IPC_NOWAIT) >= 0)
-
 void stop_handler(msgint1* msg);
 void disconnect_handler(msgint1* msg);
 void notify_chatter(int id);
@@ -39,20 +35,24 @@ int main(void) {
 
     set_int_catcher(int_catcher);
 
-    msgint1 msg1;
-    msgint2 msg2;
+    msgint2 msg;
     while (true) {
-        sleep(1);
-        if (receive_msg(STOP, msg1, INT1_SZ)) {
-            stop_handler(&msg1);
-        } else if (receive_msg(DISCONNECT, msg1, INT1_SZ)) {
-            disconnect_handler(&msg1);
-        } else if (receive_msg(LIST, msg1, INT1_SZ)) {
-            list_handler(&msg1);
-        } else if (receive_msg(CONNECT, msg2, INT2_SZ)) {
-            connect_handler(&msg2);
-        } else if (receive_msg(INIT, msg1, INT1_SZ)) {
-            init_handler(&msg1);
+        msgrcv(server_queue, &msg, INT2_SZ, -MAX_CMD, 0);
+        switch (msg.mtype) {
+            case STOP:
+                stop_handler(msg_cast(msg));
+                break;
+            case DISCONNECT:
+                disconnect_handler(msg_cast(msg));
+                break;
+            case LIST:
+                list_handler(msg_cast(msg));
+                break;
+            case CONNECT:
+                connect_handler(&msg);
+                break;
+            case INIT:
+                init_handler(msg_cast(msg));
         }
     }
     return 0;

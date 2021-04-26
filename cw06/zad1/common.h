@@ -36,6 +36,7 @@ typedef struct msgint1 {
 } msgint1;
 
 #define INT2_SZ sizeof(int) * 2
+#define msg_cast(msg2) ((msgint1*)(&msg2))
 typedef struct msgint2 {
     long mtype;
     int data[2];
@@ -54,5 +55,6 @@ typedef struct msgtext {
 #define CONNECT 4
 #define INIT 5
 #define TEXT 6
+#define MAX_CMD 10
 
 #endif  // COMMON_H
