@@ -40,8 +40,7 @@ int main(void) {
 
     char msg[MSG_SIZE];
     unsigned int prio;
-    char* line = NULL;
-    size_t size = 0;
+    char line[BUFSIZ];
     printf("$ ");
     fflush(stdout);
     while (true) {
@@ -56,7 +55,7 @@ int main(void) {
                     fflush(stdout);
             }
         } else if (is_input()) {
-            getline(&line, &size, stdin);
+            fgets(line, BUFSIZ, stdin);
             if (strncmp("LIST", line, strlen("LIST")) == 0) {
                 list_handler();
             } else if (strncmp("CONNECT", line, strlen("CONNECT")) == 0) {
@@ -70,7 +69,6 @@ int main(void) {
             fflush(stdout);
         }
     }
-    if (line != NULL) free(line);
     return 0;
 }
 
@@ -121,8 +119,6 @@ void chat_loop() {
     printf("Entered chat mode\n=======================\n");
     char msg[MSG_SIZE];
     unsigned int prio;
-    char* line = NULL;
-    size_t size = 0;
     while (true) {
         if (receive_msg(client_queue, msg, &prio)) {
             switch (prio) {
@@ -130,28 +126,26 @@ void chat_loop() {
                     server_stop_handler();
                 case DISCONNECT:
                     disconnect_handler();
-                    goto out_of_while;
+                    return;
                 case TEXT:
                     printf("> %s", msg);
             }
         } else if (is_input()) {
-            getline(&line, &size, stdin);
-            if (strncmp("LIST", line, strlen("LIST")) == 0) {
+            fgets(msg, MSG_SIZE, stdin);
+            if (strncmp("LIST", msg, strlen("LIST")) == 0) {
                 list_handler();
-            } else if (strncmp("CONNECT", line, strlen("CONNECT")) == 0) {
+            } else if (strncmp("CONNECT", msg, strlen("CONNECT")) == 0) {
                 printf("Close current connection first!\n");
-            } else if (strncmp("DISCONNECT", line, strlen("DISCONNECT")) == 0) {
+            } else if (strncmp("DISCONNECT", msg, strlen("DISCONNECT")) == 0) {
                 disconnect_handler();
                 break;
-            } else if (strncmp("STOP", line, strlen("STOP")) == 0) {
+            } else if (strncmp("STOP", msg, strlen("STOP")) == 0) {
                 stop_handler();
             } else {
-                mq_send(chatter_queue, line, MSG_SIZE, TEXT);
+                mq_send(chatter_queue, msg, strnlen(msg, MSG_SIZE), TEXT);
             }
         }
     }
-out_of_while:
-    if (line != NULL) free(line);
 }
 
 void list_handler() {

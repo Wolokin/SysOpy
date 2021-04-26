@@ -41,20 +41,18 @@ int main(void) {
     init();
 
     msgint1 msg1;
-    char* line = NULL;
-    size_t size = 0;
+    char line[BUFSIZ];
     printf("$ ");
     fflush(stdout);
     while (true) {
         if (receive_msg(STOP, msg1, INT1_SZ)) {
-            if (line != NULL) free(line);
             server_stop_handler();
         } else if (receive_msg(CONNECT, msg1, INT1_SZ)) {
             connect_msg_handler(&msg1);
             printf("$ ");
             fflush(stdout);
         } else if (is_input()) {
-            getline(&line, &size, stdin);
+            fgets(line, BUFSIZ, stdin);
             if (strncmp("LIST", line, strlen("LIST")) == 0) {
                 list_handler();
             } else if (strncmp("CONNECT", line, strlen("CONNECT")) == 0) {
@@ -62,14 +60,12 @@ int main(void) {
             } else if (strncmp("DISCONNECT", line, strlen("DISCONNECT")) == 0) {
                 printf("No connection is present\n");
             } else if (strncmp("STOP", line, strlen("STOP")) == 0) {
-                if (line != NULL) free(line);
                 stop_handler();
             }
             printf("$ ");
             fflush(stdout);
         }
     }
-    if (line != NULL) free(line);
     return 0;
 }
 
@@ -115,11 +111,9 @@ void chat_loop(int queue) {
     printf("Entered chat mode\n=======================\n");
     msgint1 msg;
     msgtext textmsg = {TEXT, {}};
-    char* line = NULL;
-    size_t size = 0;
+    char line[BUFSIZ];
     while (true) {
         if (receive_msg(STOP, msg, INT1_SZ)) {
-            if (line != NULL) free(line);
             server_stop_handler();
         } else if (receive_msg(DISCONNECT, msg, INT1_SZ)) {
             disconnect_handler();
@@ -127,7 +121,7 @@ void chat_loop(int queue) {
         } else if (receive_msg(TEXT, textmsg, TEXT_SZ)) {
             printf("> %s", textmsg.text);
         } else if (is_input()) {
-            getline(&line, &size, stdin);
+            fgets(line, BUFSIZ, stdin);
             if (strncmp("LIST", line, strlen("LIST")) == 0) {
                 list_handler();
             } else if (strncmp("CONNECT", line, strlen("CONNECT")) == 0) {
@@ -136,7 +130,6 @@ void chat_loop(int queue) {
                 disconnect_handler();
                 break;
             } else if (strncmp("STOP", line, strlen("STOP")) == 0) {
-                if (line != NULL) free(line);
                 stop_handler();
             } else {
                 int length = strnlen(line, TEXT_SZ) + 1;
@@ -145,7 +138,6 @@ void chat_loop(int queue) {
             }
         }
     }
-    if (line != NULL) free(line);
 }
 
 void list_handler() {
