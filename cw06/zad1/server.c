@@ -1,9 +1,10 @@
 #include "common.h"
 
+#define FREE -1
 typedef struct client {
     int queue;
     bool assigned;
-    bool available;
+    int chatting_with;
 } client;
 
 int server_queue;
@@ -16,6 +17,7 @@ int clients_count = 0;
 
 void stop_handler(msgint1* msg);
 void disconnect_handler(msgint1* msg);
+void notify_chatter(int id);
 void list_handler(msgint1* msg);
 void connect_handler(msgint2* msg);
 void init_handler(msgint1* msg);
@@ -32,7 +34,7 @@ int main(void) {
 
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         clients[i].assigned = false;
-        clients[i].available = false;
+        clients[i].chatting_with = FREE;
     }
 
     set_int_catcher(int_catcher);
@@ -60,7 +62,8 @@ void stop_handler(msgint1* msg) {
     int id = msg->data[0];
     printf("received STOP command from client %d\n", id);
     clients[id].assigned = false;
-    clients[id].available = false;
+    notify_chatter(clients[id].chatting_with);
+    clients[id].chatting_with = FREE;
     --clients_count;
     printf("Client count %d\n", clients_count);
 }
@@ -68,7 +71,15 @@ void stop_handler(msgint1* msg) {
 void disconnect_handler(msgint1* msg) {
     int id = msg->data[0];
     printf("received DISCONNECT command from client %d\n", id);
-    clients[id].available = true;
+    notify_chatter(clients[id].chatting_with);
+    clients[id].chatting_with = FREE;
+}
+
+void notify_chatter(int id) {
+    msgint1 msg = {DISCONNECT, {}};
+    if (clients[id].chatting_with != FREE) {
+        msgsnd(clients[id].queue, &msg, 0, 0);
+    }
 }
 
 void list_handler(msgint1* msg) {
@@ -79,7 +90,8 @@ void list_handler(msgint1* msg) {
     char* strbuilder = reply.text;
     strbuilder += sprintf(strbuilder, "Available clients:\n");
     for (int i = 0; i < MAX_CLIENTS; ++i) {
-        if (clients[i].assigned && clients[i].available && i != id) {
+        if (clients[i].assigned && clients[i].chatting_with == FREE &&
+            i != id) {
             strbuilder += sprintf(strbuilder, "Client ID: %d\n", i);
         }
     }
@@ -91,12 +103,12 @@ void connect_handler(msgint2* msg) {
     unsigned id2 = msg->data[1];
     printf("received CONNECT command from client %d to %d\n", id1, id2);
     msgint1 reply = {CONNECT, {server_queue}};
-    if (!clients[id2].available || id2 > MAX_CLIENTS) {
+    if (clients[id2].chatting_with != FREE || id2 > MAX_CLIENTS) {
         msgsnd(clients[id1].queue, &reply, INT1_SZ, 0);
         return;
     }
-    clients[id1].available = false;
-    clients[id2].available = false;
+    clients[id1].chatting_with = id2;
+    clients[id2].chatting_with = id1;
     reply.data[0] = clients[id2].queue;
     msgsnd(clients[id1].queue, &reply, INT1_SZ, 0);
     reply.data[0] = clients[id1].queue;
@@ -111,7 +123,7 @@ void init_handler(msgint1* msg) {
             printf("Assigned id: %d\n", id);
             clients[id].assigned = true;
             clients[id].queue = msgget(key, 0);
-            clients[id].available = true;
+            clients[id].chatting_with = FREE;
             msgint1 reply = {INIT, {id}};
             msgsnd(clients[id].queue, &reply, INT1_SZ, 0);
             ++clients_count;

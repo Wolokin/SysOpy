@@ -15,8 +15,7 @@ msgint1 default_msg;  // Default msg only with id assigned by server
 
 void init();
 void stop_handler();
-void disconnect_command_handler();
-void disconnect_msg_handler(int queue);
+void disconnect_handler();
 void connect_command_handler(char* command);
 void connect_msg_handler(msgint1* msg);
 void chat_loop(int queue);
@@ -48,9 +47,12 @@ int main(void) {
     fflush(stdout);
     while (true) {
         if (receive_msg(STOP, msg1, INT1_SZ)) {
+            if (line != NULL) free(line);
             server_stop_handler();
         } else if (receive_msg(CONNECT, msg1, INT1_SZ)) {
             connect_msg_handler(&msg1);
+            printf("$ ");
+            fflush(stdout);
         } else if (is_input()) {
             getline(&line, &size, stdin);
             if (strncmp("LIST", line, strlen("LIST")) == 0) {
@@ -60,6 +62,7 @@ int main(void) {
             } else if (strncmp("DISCONNECT", line, strlen("DISCONNECT")) == 0) {
                 printf("No connection is present\n");
             } else if (strncmp("STOP", line, strlen("STOP")) == 0) {
+                if (line != NULL) free(line);
                 stop_handler();
             }
             printf("$ ");
@@ -85,15 +88,9 @@ void stop_handler() {
     exit(0);
 }
 
-void disconnect_command_handler() {
+void disconnect_handler() {
     printf("Disconnecting\n");
     send_default_msg(DISCONNECT);
-}
-
-void disconnect_msg_handler(int queue) {
-    printf("Disconnecting\n");
-    send_default_msg(DISCONNECT);
-    msgsnd(queue, &default_msg, INT1_SZ, 0);
 }
 
 void connect_command_handler(char* command) {
@@ -122,9 +119,10 @@ void chat_loop(int queue) {
     size_t size = 0;
     while (true) {
         if (receive_msg(STOP, msg, INT1_SZ)) {
+            if (line != NULL) free(line);
             server_stop_handler();
         } else if (receive_msg(DISCONNECT, msg, INT1_SZ)) {
-            disconnect_command_handler();
+            disconnect_handler();
             break;
         } else if (receive_msg(TEXT, textmsg, TEXT_SZ)) {
             printf("> %s", textmsg.text);
@@ -135,10 +133,10 @@ void chat_loop(int queue) {
             } else if (strncmp("CONNECT", line, strlen("CONNECT")) == 0) {
                 printf("Close current connection first!\n");
             } else if (strncmp("DISCONNECT", line, strlen("DISCONNECT")) == 0) {
-                disconnect_msg_handler(queue);
+                disconnect_handler();
                 break;
             } else if (strncmp("STOP", line, strlen("STOP")) == 0) {
-                disconnect_msg_handler(queue);
+                if (line != NULL) free(line);
                 stop_handler();
             } else {
                 int length = strnlen(line, TEXT_SZ) + 1;
