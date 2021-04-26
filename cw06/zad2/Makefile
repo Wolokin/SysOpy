@@ -18,12 +18,6 @@ client.o: client.c
 client: dirs client.o
 	$(CC) build/client.o -o client.out -lrt
 
-test.o: test.c
-	$(CC) -c test.c -o build/test.o -D_DEFAULT_SOURCE #-D_POSIX_C_SOURCE=200809L
-
-test: dirs test.o
-	$(CC) build/test.o -o test.out -lrt
-
 run: all
 	./panel.sh
 
