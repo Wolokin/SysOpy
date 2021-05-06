@@ -1,4 +1,5 @@
 CC = gcc -Wall -std=c11 -ggdb
+LL = -lrt -lpthread
 SEP="========================================="
 
 all: manager cook uber
@@ -10,19 +11,19 @@ manager.o: manager.c
 	$(CC) -c manager.c -o build/manager.o -D_DEFAULT_SOURCE #-D_POSIX_C_SOURCE=200809L
 
 manager: dirs manager.o
-	$(CC) build/manager.o -o manager.out -lrt
+	$(CC) build/manager.o -o manager.out $(LL)
 
 cook.o: cook.c
 	$(CC) -c cook.c -o build/cook.o -D_DEFAULT_SOURCE #-D_POSIX_C_SOURCE=200809L
 
 cook: dirs cook.o
-	$(CC) build/cook.o -o cook.out -lrt
+	$(CC) build/cook.o -o cook.out $(LL)
 
 uber.o: uber.c
 	$(CC) -c uber.c -o build/uber.o -D_DEFAULT_SOURCE #-D_POSIX_C_SOURCE=200809L
 
 uber: dirs uber.o
-	$(CC) build/uber.o -o uber.out -lrt
+	$(CC) build/uber.o -o uber.out $(LL)
 
 run: all
 	./manager.out 5 5

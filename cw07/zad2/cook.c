@@ -11,10 +11,12 @@ int find_free_spot(int* tab, int sz) {
 }
 
 int main() {
-    open_sems(PERMS);
-    open_shms(PERMS);
-    attach_shared_mem();
     atexit(detach_shared_mem);
+    atexit(close_sems);
+
+    open_sems();
+    open_shm();
+    attach_shared_mem();
 
     srand(getpid());
     for (int i = 0; i < PIZZA_COUNT; ++i) {
@@ -25,24 +27,27 @@ int main() {
         sleep(1 + rand() % 2);
 
         // Adding pizza to oven
-        sem_operation2(-1, OVEN, OVEN_FREE_SPOTS);
+        sem_wait(pizzeria_sem[OVEN_FREE_SPOTS]);
+        sem_wait(pizzeria_sem[OVEN]);
         int pizza_index = find_free_spot(pizzeria_ptr->oven_space, OVEN_SZ);
         pizzeria_ptr->oven_space[pizza_index] = pizza_type;
         pizzeria_ptr->pizzas_in_oven++;
         print_timestamp();
         printf("Dodalem pizze: %d. Liczba pizz w piecu: %ld\n", pizza_type,
                pizzeria_ptr->pizzas_in_oven);
-        sem_operation1(1, OVEN);
+        sem_post(pizzeria_sem[OVEN]);
 
         // Taking pizza out of oven
         sleep(1 + rand() % 2);
-        sem_operation1(-1, OVEN);
+        sem_wait(pizzeria_sem[OVEN]);
         pizzeria_ptr->oven_space[pizza_index] = FREE_SPACE;
         pizzeria_ptr->pizzas_in_oven--;
-        sem_operation2(1, OVEN, OVEN_FREE_SPOTS);
+        sem_post(pizzeria_sem[OVEN_FREE_SPOTS]);
+        sem_post(pizzeria_sem[OVEN]);
 
         // Placing pizza on table
-        sem_operation2(-1, TABLE, TABLE_FREE_SPOTS);
+        sem_wait(pizzeria_sem[TABLE_FREE_SPOTS]);
+        sem_wait(pizzeria_sem[TABLE]);
         int table_index = find_free_spot(pizzeria_ptr->table_space, TABLE_SZ);
         pizzeria_ptr->table_space[table_index] = pizza_type;
         pizzeria_ptr->pizzas_on_table++;
@@ -52,6 +57,7 @@ int main() {
             "stole: %ld\n",
             pizza_type, pizzeria_ptr->pizzas_in_oven,
             pizzeria_ptr->pizzas_on_table);
-        sem_operation2(1, TABLE, TABLE_READY_PIZZAS);
+        sem_post(pizzeria_sem[TABLE_READY_PIZZAS]);
+        sem_post(pizzeria_sem[TABLE]);
     }
 }

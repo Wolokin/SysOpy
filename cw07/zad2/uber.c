@@ -11,14 +11,16 @@ int find_ready_pizza_index() {
 }
 
 int main() {
-    open_sems(PERMS);
-    open_shms(PERMS);
-    attach_shared_mem();
     atexit(detach_shared_mem);
+    atexit(close_sems);
+    open_sems();
+    open_shm();
+    attach_shared_mem();
 
     srand(getpid());
     for (int i = 0; i < PIZZA_COUNT; ++i) {
-        sem_operation2(-1, TABLE, TABLE_READY_PIZZAS);
+        sem_wait(pizzeria_sem[TABLE_READY_PIZZAS]);
+        sem_wait(pizzeria_sem[TABLE]);
         int pizza_index = find_ready_pizza_index();
         int pizza_type = pizzeria_ptr->table_space[pizza_index];
         pizzeria_ptr->table_space[pizza_index] = FREE_SPACE;
@@ -26,7 +28,8 @@ int main() {
         print_timestamp();
         printf("Pobieram pizze: %d. Liczba pizz na stole: %ld.\n", pizza_type,
                pizzeria_ptr->pizzas_on_table);
-        sem_operation2(1, TABLE, TABLE_FREE_SPOTS);
+        sem_post(pizzeria_sem[TABLE_FREE_SPOTS]);
+        sem_post(pizzeria_sem[TABLE]);
 
         randsleep(4);
         print_timestamp();
