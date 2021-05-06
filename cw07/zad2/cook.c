@@ -23,7 +23,7 @@ int main() {
         // Preping pizza
         int pizza_type = rand() % 10;
         print_timestamp();
-        printf("Przygotowuje pizze: %d\n", pizza_type);
+        printf("Przygotowuje pizze: %d.\n", pizza_type);
         sleep(1 + rand() % 2);
 
         // Adding pizza to oven
@@ -33,7 +33,7 @@ int main() {
         pizzeria_ptr->oven_space[pizza_index] = pizza_type;
         pizzeria_ptr->pizzas_in_oven++;
         print_timestamp();
-        printf("Dodalem pizze: %d. Liczba pizz w piecu: %ld\n", pizza_type,
+        printf("Dodalem pizze: %d. Liczba pizz w piecu: %ld.\n", pizza_type,
                pizzeria_ptr->pizzas_in_oven);
         sem_post(pizzeria_sem[OVEN]);
 
@@ -54,7 +54,7 @@ int main() {
         print_timestamp();
         printf(
             "Wyjmuje pizze: %d. Liczba pizz w piecu: %ld. Liczba pizz na "
-            "stole: %ld\n",
+            "stole: %ld.\n",
             pizza_type, pizzeria_ptr->pizzas_in_oven,
             pizzeria_ptr->pizzas_on_table);
         sem_post(pizzeria_sem[TABLE_READY_PIZZAS]);

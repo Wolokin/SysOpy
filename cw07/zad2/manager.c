@@ -7,8 +7,8 @@ void delete_sems() {
     sem_unlink(SEM_NAME "_oven");
     sem_unlink(SEM_NAME "_oven_free_spots");
     sem_unlink(SEM_NAME "_table");
-    sem_unlink(SEM_NAME "table_free_spots");
-    sem_unlink(SEM_NAME "table_ready_pizzas");
+    sem_unlink(SEM_NAME "_table_free_spots");
+    sem_unlink(SEM_NAME "_table_ready_pizzas");
 }
 
 void delete_shm() { shm_unlink(SHM_NAME); }
@@ -36,18 +36,18 @@ void init_sems() {
     pizzeria_sem[TABLE] =
         sem_open(SEM_NAME "_table", O_CREAT | O_EXCL, PERMS, 1);
     pizzeria_sem[TABLE_FREE_SPOTS] = sem_open(
-        SEM_NAME "table_free_spots", O_CREAT | O_EXCL, PERMS, TABLE_SZ);
+        SEM_NAME "_table_free_spots", O_CREAT | O_EXCL, PERMS, TABLE_SZ);
     pizzeria_sem[TABLE_READY_PIZZAS] =
-        sem_open(SEM_NAME "table_ready_pizzas", O_CREAT | O_EXCL, PERMS, 0);
+        sem_open(SEM_NAME "_table_ready_pizzas", O_CREAT | O_EXCL, PERMS, 0);
     close_sems();
 }
 
 void init_shm() {
     pizzeria_shm = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, PERMS);
+    ftruncate(pizzeria_shm, sizeof(pizzeria));
     attach_shared_mem();
     pizzeria_ptr->pizzas_in_oven = 0;
     pizzeria_ptr->pizzas_on_table = 0;
-    pizzeria_ptr->is_active = true;
     for (int i = 0; i < OVEN_SZ; ++i) {
         pizzeria_ptr->oven_space[i] = FREE_SPACE;
     }

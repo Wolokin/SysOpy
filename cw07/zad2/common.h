@@ -47,7 +47,6 @@ typedef struct pizzeria {
     size_t pizzas_in_oven;
     int table_space[TABLE_SZ];
     size_t pizzas_on_table;
-    bool is_active;
 } pizzeria;
 
 #define PERMS 0666
@@ -64,7 +63,7 @@ void close_sems() {
         sem_close(pizzeria_sem[i]);
     }
 }
-void open_shm() { pizzeria_shm = shm_open(SHM_NAME, 0, O_RDWR); }
+void open_shm() { pizzeria_shm = shm_open(SHM_NAME, O_RDWR, PERMS); }
 
 pizzeria* pizzeria_ptr;
 
