@@ -1,9 +1,19 @@
 #include "common.h"
 
+int *child_pids;
+
 // atexit
 void close_sem() { semctl(pizzeria_sem, 0, IPC_RMID); }
 
 void close_shm() { shmctl(pizzeria_shm, IPC_RMID, NULL); }
+
+void kill_children(int _signo) {
+    int i = 0;
+    while (child_pids[i]) {
+        kill(child_pids[i], SIGTERM);
+        i++;
+    }
+}
 
 union semun {
     int val;               /* Value for SETVAL */
@@ -52,16 +62,26 @@ int main(int argc, char *argv[]) {
 
     int cook_count = strtol(argv[1], NULL, 10);
     int uber_count = strtol(argv[2], NULL, 10);
+    child_pids = malloc(sizeof(int) * (cook_count + uber_count + 1));
     for (int i = 0; i < cook_count; ++i) {
-        if (fork() == 0) {
+        child_pids[i] = fork();
+        if (child_pids[i] == 0) {
             execv("./cook.out", (char *[]){"./cook.out", NULL});
         }
     }
     for (int i = 0; i < uber_count; ++i) {
-        if (fork() == 0) {
+        child_pids[i + cook_count] = fork();
+        if (child_pids[i + cook_count] == 0) {
             execv("./uber.out", (char *[]){"./uber.out", NULL});
         }
     }
+    child_pids[cook_count + uber_count] = 0;
+    struct sigaction act;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    act.sa_handler = kill_children;
+    sigaction(SIGINT, &act, NULL);
+    pause();
     while (wait(NULL) != -1)
         ;
 

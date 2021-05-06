@@ -40,7 +40,7 @@ int pizzeria_shm;
 
 #define OVEN_SZ 5
 #define TABLE_SZ 5
-#define PIZZA_COUNT 10
+#define PIZZA_COUNT 10000
 #define FREE_SPACE -1
 typedef struct pizzeria {
     int oven_space[OVEN_SZ];
