@@ -38,7 +38,7 @@ int main() {
         sleep(1 + rand() % 2);
         sem_operation1(-1, OVEN);
         pizzeria_ptr->oven_space[pizza_index] = FREE_SPACE;
-        pizzeria_ptr->pizzas_in_oven--;
+        size_t remember_pizzas_in_oven = --pizzeria_ptr->pizzas_in_oven;
         sem_operation2(1, OVEN, OVEN_FREE_SPOTS);
 
         // Placing pizza on table
@@ -50,8 +50,7 @@ int main() {
         printf(
             "Wyjmuje pizze: %d. Liczba pizz w piecu: %ld. Liczba pizz na "
             "stole: %ld\n",
-            pizza_type, pizzeria_ptr->pizzas_in_oven,
-            pizzeria_ptr->pizzas_on_table);
+            pizza_type, remember_pizzas_in_oven, pizzeria_ptr->pizzas_on_table);
         sem_operation2(1, TABLE, TABLE_READY_PIZZAS);
     }
 }
