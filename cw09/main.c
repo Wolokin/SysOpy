@@ -29,8 +29,7 @@
 
 #define critical_section(mutex, code) \
     pthread_mutex_lock(mutex);        \
-    code\
-    pthread_mutex_unlock(mutex);
+    code pthread_mutex_unlock(mutex);
 
 #define P(x) printf("%s: %d\n", #x, x);
 
@@ -45,39 +44,40 @@ size_t pending_reindeer = 0;
 
 void* santa_thread(void* args) {
     unsigned int rstate = SEED;
-    
-    for(int deliveries = 0; deliveries < MAX_DELIVERIES; ) {
-        printf("Mikołaj: I sleep\n");
-    critical_section(&santa_mutex, {
-            while(pending_reindeer != REQ_REINDEER_COUNT && pending_elves != REQ_ELF_COUNT) {
+
+    for (int deliveries = 0; deliveries < MAX_DELIVERIES;) {
+        printf("Mikołaj: Śpię\n");
+        critical_section(&santa_mutex, {
+            while (pending_reindeer != REQ_REINDEER_COUNT &&
+                   pending_elves != REQ_ELF_COUNT) {
                 pthread_cond_wait(&wakeup_santa_cond, &santa_mutex);
             }
 
-            printf("Mikołaj: Real sh*t\n");
-            
-            if(pending_reindeer == REQ_REINDEER_COUNT) {
+            printf("Mikołaj: Budzę się\n");
+
+            if (pending_reindeer == REQ_REINDEER_COUNT) {
                 deliveries++;
                 printf("Mikołaj: Dostarczam zabawki\n");
-                
+
                 pthread_mutex_unlock(&santa_mutex);
-                sleep(2+(rand_r(&rstate)%3));
+                sleep(2 + (rand_r(&rstate) % 3));
                 pthread_mutex_lock(&santa_mutex);
-                
+
                 pending_reindeer = 0;
                 pthread_cond_broadcast(&wakeup_reindeer_cond);
             }
-            if(pending_elves == REQ_ELF_COUNT) {
+            if (pending_elves == REQ_ELF_COUNT) {
                 printf("Mikołaj: Rozwiązuję problemy elfów ");
-                for(int i = 0; i < REQ_ELF_COUNT; ++i) {
+                for (int i = 0; i < REQ_ELF_COUNT; ++i) {
                     printf("%ld, ", pending_elves_ids[i]);
                     pending_elves_ids[i] = pthread_self();
                 }
                 printf("\n");
-                
+
                 pthread_mutex_unlock(&santa_mutex);
-                sleep(1 + (rand_r(&rstate)%2));
+                sleep(1 + (rand_r(&rstate) % 2));
                 pthread_mutex_lock(&santa_mutex);
-                
+
                 pending_elves = 0;
                 pthread_cond_broadcast(&wakeup_elves_cond);
             }
@@ -90,38 +90,39 @@ void* elf_thread(void* args) {
     unsigned int rstate = SEED;
     pthread_t id = pthread_self();
 
-    while(true) {
-        sleep(2 + (rand_r(&rstate)%4));
+    while (true) {
+        sleep(2 + (rand_r(&rstate) % 4));
         critical_section(&santa_mutex, {
-                // Waiting for other elves to finish
-                if(pending_elves == 3) {
-                    printf("Elf: Czekam na powrót elfów, %ld\n", id);
-                }
-                while(pending_elves == 3) {
+            // Waiting for other elves to finish
+            if (pending_elves == 3) {
+                printf("Elf: Czekam na powrót elfów, %ld\n", id);
+            }
+            while (pending_elves == 3) {
+                pthread_cond_wait(&wakeup_elves_cond, &santa_mutex);
+            }
+            // Joining the queue
+            size_t my_ticket = pending_elves;
+            pending_elves_ids[pending_elves++] = id;
+            // Checking if there are enough of us to wake up santa
+            if (pending_elves == REQ_ELF_COUNT) {
+                printf("Elf: Wybudzam mikołaja, %ld\n", id);
+                pthread_cond_broadcast(&wakeup_elves_cond);
+                pthread_cond_broadcast(&wakeup_santa_cond);
+            }
+            // Waiting until there is enough of us to wake up santa
+            else {
+                printf("Elf: Czeka %lu elfów na mikołaja, %ld\n", pending_elves,
+                       id);
+                while (pending_elves < REQ_ELF_COUNT) {
                     pthread_cond_wait(&wakeup_elves_cond, &santa_mutex);
                 }
-                // Joining the queue
-                size_t my_ticket = pending_elves;
-                pending_elves_ids[pending_elves++] = id;
-                // Checking if there are enough of us to wake up santa
-                if(pending_elves == REQ_ELF_COUNT) {
-                    printf("Elf: Wybudzam mikołaja, %ld\n", id);
-                    pthread_cond_broadcast(&wakeup_elves_cond);
-                    pthread_cond_broadcast(&wakeup_santa_cond);
-                }
-                // Waiting until there is enough of us to wake up santa
-                else{
-                    printf("Elf: Czeka %lu elfów na mikołaja, %ld\n", pending_elves, id);
-                    while(pending_elves < REQ_ELF_COUNT) {
-                        pthread_cond_wait(&wakeup_elves_cond, &santa_mutex);
-                    }
-                }
-                // Waiting for santa to solve our problem
-                printf("Elf: Mikołaj rozwiązuje problem, %ld\n", id);
-                while(pthread_equal(pending_elves_ids[my_ticket], id)) {
-                    pthread_cond_wait(&wakeup_elves_cond, &santa_mutex);
-                }
-            })
+            }
+            // Waiting for santa to solve our problem
+            while (pthread_equal(pending_elves_ids[my_ticket], id)) {
+                pthread_cond_wait(&wakeup_elves_cond, &santa_mutex);
+            }
+            printf("Elf: Mikołaj rozwiązał problem, %ld\n", id);
+        })
     }
     return NULL;
 }
@@ -129,27 +130,28 @@ void* elf_thread(void* args) {
 void* reindeer_thread(void* args) {
     unsigned int rstate = SEED;
     pthread_t id = pthread_self();
-    while(true) {
-        sleep(5 + (rand_r(&rstate)%6));
+    while (true) {
+        sleep(5 + (rand_r(&rstate) % 6));
         critical_section(&santa_mutex, {
-                // Joining the queue
-                pending_reindeer++;
-                // Checking if I am the last returning reindeer
-                if(pending_reindeer == REQ_REINDEER_COUNT) {
-                    printf("Renifer: Wybudzam mikołaja, %ld\n", id);
-                    pthread_cond_broadcast(&wakeup_santa_cond);
-                    pthread_cond_broadcast(&wakeup_reindeer_cond);
-                }
-                // Waiting for other reindeer
-                while(pending_reindeer != REQ_REINDEER_COUNT) {
-                    printf("Renifer: Czeka %lu reniferów na mikołaja, %ld\n", pending_reindeer, id);
-                    pthread_cond_wait(&wakeup_reindeer_cond, &santa_mutex);
-                }
-                // Waiting for santa to finish delivering presents
-                while(pending_reindeer > 0) {
-                    pthread_cond_wait(&wakeup_reindeer_cond, &santa_mutex);
-                }
-            })
+            // Joining the queue
+            pending_reindeer++;
+            // Checking if I am the last returning reindeer
+            if (pending_reindeer == REQ_REINDEER_COUNT) {
+                printf("Renifer: Wybudzam mikołaja, %ld\n", id);
+                pthread_cond_broadcast(&wakeup_santa_cond);
+                pthread_cond_broadcast(&wakeup_reindeer_cond);
+            }
+            // Waiting for other reindeer
+            while (pending_reindeer != REQ_REINDEER_COUNT) {
+                printf("Renifer: Czeka %lu reniferów na mikołaja, %ld\n",
+                       pending_reindeer, id);
+                pthread_cond_wait(&wakeup_reindeer_cond, &santa_mutex);
+            }
+            // Waiting for santa to finish delivering presents
+            while (pending_reindeer > 0) {
+                pthread_cond_wait(&wakeup_reindeer_cond, &santa_mutex);
+            }
+        })
     }
     return NULL;
 }
@@ -160,10 +162,10 @@ int main(int argc, char* argv[]) {
     pthread_t santa;
 
     pthread_create(&santa, NULL, santa_thread, NULL);
-    for(int i = 0; i < REINDEER_COUNT; ++i) {
+    for (int i = 0; i < REINDEER_COUNT; ++i) {
         pthread_create(&reindeer[i], NULL, reindeer_thread, NULL);
     }
-    for(int i = 0; i < ELF_COUNT; ++i) {
+    for (int i = 0; i < ELF_COUNT; ++i) {
         pthread_create(&elves[i], NULL, elf_thread, NULL);
     }
     pthread_join(santa, NULL);
