@@ -22,10 +22,10 @@ void initialize_unix_socket(char* path) {
 }
 
 void initialize_ipv4_socket(char* ipv4, uint16_t port) {
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(port)};
+    /* memset(&addr, 0, sizeof(addr)); */
+    /* addr.sin_family = AF_INET; */
+    /* addr.sin_port = htons(port); */
     check(inet_pton(AF_INET, ipv4, &addr.sin_addr));
     sockfd = check(socket(AF_INET, CONNECTION_TYPE, 0));
     check(connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)));
