@@ -16,6 +16,7 @@ typedef struct game {
 
 typedef struct client_t {
     union addr addr;
+    socklen_t socklen;
     enum type {
         local, net
     } type;
@@ -89,9 +90,9 @@ char check_winning_conditions(char board[9]) {
 
 void disconnect_client(int id) {
     clients[id].taken = false;
-    if(clients[id].is_playing) {
-        sendto(clients[id].type == net ? netsockfd : localsockfd, &(message_t){.type=msg_disconnect}, sizeof(message_t), 0,
-               &clients[clients[id].game.opponent].addr.def, sizeof(union addr));
+    if(clients[id].is_playing && clients[clients[id].game.opponent].taken) {
+        check(sendto(clients[id].type == net ? netsockfd : localsockfd, &(message_t){.type=msg_disconnect}, sizeof(message_t), 0,
+               &clients[clients[id].game.opponent].addr.def, clients[clients[id].game.opponent].socklen));
     }
     safe_print("Disconnected client %d %s\n", id, clients[id].name);
 }
@@ -129,26 +130,26 @@ void *processing_thread(void *args) {
             pos = msg.data.move_position - 1;
             if (pos < 0 || pos >= 9 || clients[id].game.board[msg.data.move_position - 1] != '-') {
                 msg.type = msg_move;
-                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[id].addr.def, sizeof(union addr));
+                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[id].addr.def, clients[id].socklen);
                 break;
             }
             clients[id].game.board[pos] = clients[id].game.marker;
             clients[clients[id].game.opponent].game.board[pos] = clients[id].game.marker;   
             strncpy(msg.data.board, clients[id].game.board, 9);
             msg.type = msg_board_update;
-            sendto(sockfd, &msg, sizeof(message_t), 0, &clients[id].addr.def, sizeof(union addr));
-            sendto(sockfd, &msg, sizeof(message_t), 0, &clients[clients[id].game.opponent].addr.def, sizeof(union addr));
+            sendto(sockfd, &msg, sizeof(message_t), 0, &clients[id].addr.def, clients[id].socklen);
+            sendto(sockfd, &msg, sizeof(message_t), 0, &clients[clients[id].game.opponent].addr.def, clients[clients[id].game.opponent].socklen);
             if(check_winning_conditions(clients[id].game.board) != '-') {
                 msg.type = msg_end_game;
                 msg.data.symbol = check_winning_conditions(clients[id].game.board);
-                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[id].addr.def, sizeof(union addr));
-                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[clients[id].game.opponent].addr.def, sizeof(union addr));
+                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[id].addr.def, clients[id].socklen);
+                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[clients[id].game.opponent].addr.def, clients[clients[id].game.opponent].socklen);
                 clients[id].taken = false;
                 clients[clients[id].game.opponent].taken = false;
             }
             else {
                 msg.type = msg_move;
-                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[clients[id].game.opponent].addr.def, sizeof(union addr));
+                sendto(sockfd, &msg, sizeof(message_t), 0, &clients[clients[id].game.opponent].addr.def, clients[clients[id].game.opponent].socklen);
             }
             break;
         case msg_ping:
@@ -191,6 +192,7 @@ void *accepting_thread(void *args) {
                 clients[ind].type = addr.def.sa_family == AF_INET ? net : local;
                 clients[ind].addr = addr;
                 clients[ind].is_playing = true;
+                clients[ind].socklen = socklen;
                 strncpy(clients[ind].name, msg.name, CLIENT_NAME_LEN);
                 clients[ind].taken = true;
                 safe_print("Client got succesfully assigned id %d\n", ind);
@@ -212,19 +214,19 @@ void *accepting_thread(void *args) {
                 strncpy(msg.name, clients[i].name, CLIENT_NAME_LEN);
                 msg.data.symbol = clients[ind].game.marker = 'O';
                 check(sendto(sockfd, &msg,
-                             sizeof(message_t), 0, &clients[ind].addr.def, sizeof(union addr)));
+                             sizeof(message_t), 0, &clients[ind].addr.def, clients[ind].socklen));
                 strncpy(msg.name, clients[ind].name, CLIENT_NAME_LEN);
                 msg.data.symbol = clients[i].game.marker = 'X';
                 check(sendto(sockfd, &msg,
-                             sizeof(message_t), 0, &clients[i].addr.def, sizeof(union addr)));
+                             sizeof(message_t), 0, &clients[i].addr.def, clients[i].socklen));
                 strncpy(clients[i].game.board, "---------", 9);
                 strncpy(clients[ind].game.board, "---------", 9);
                 strncpy(msg.data.board, "---------", 9);
                 msg.type = msg_board_update;
-                check(sendto(sockfd, &msg, sizeof(msg), 0, &clients[i].addr.def, sizeof(union addr)));
-                check(sendto(sockfd, &msg, sizeof(msg), 0, &clients[ind].addr.def, sizeof(union addr)));
+                check(sendto(sockfd, &msg, sizeof(msg), 0, &clients[i].addr.def, clients[i].socklen));
+                check(sendto(sockfd, &msg, sizeof(msg), 0, &clients[ind].addr.def, clients[ind].socklen));
                 msg.type = msg_move;
-                check(sendto(sockfd, &msg, sizeof(msg), 0, &clients[i].addr.def, sizeof(union addr)));
+                check(sendto(sockfd, &msg, sizeof(msg), 0, &clients[i].addr.def, clients[i].socklen));
                 return NULL;
             }
         }
@@ -251,7 +253,7 @@ void *accepting_thread(void *args) {
                                   })
                      sendto(clients[i].type == local ? localsockfd : netsockfd,
                             &msg, sizeof(msg), 0, &clients[i].addr.def,
-                            sizeof(union addr));
+                            clients[i].socklen);
              }
          }
      }
@@ -322,7 +324,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < available; ++i) {
             struct thread_args *args = malloc(sizeof(struct thread_args));
             args->socklen = sizeof(union addr);
-            recvfrom(events[i].data.fd, &args->msg, sizeof(message_t), 0, &args->addr.def, &args->socklen);
+            check(recvfrom(events[i].data.fd, &args->msg, sizeof(message_t), 0, &args->addr.def, &args->socklen));
             args->sockfd = events[i].data.fd;
             pthread_t thread;
             if (args->msg.type == msg_connect) {

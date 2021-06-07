@@ -5,9 +5,12 @@
 
 int sockfd;
 union addr servaddr;
+char* name;
 
 void cleanup() {
-    write(sockfd, &(message_t){.type = msg_disconnect}, sizeof(message_t));
+    message_t msg = {.type = msg_disconnect};
+    strncpy(msg.name, name, CLIENT_NAME_LEN);
+    write(sockfd, &msg, sizeof(message_t));
     close(sockfd);
 }
 
@@ -17,14 +20,14 @@ void initialize_unix_socket(char* path) {
     servaddr.local = (struct sockaddr_un) {
         .sun_family = AF_UNIX,
     };
-    strcpy(servaddr.local.sun_path, path);
+    strncpy(servaddr.local.sun_path, path, sizeof(servaddr.local.sun_path));
     struct sockaddr_un bind_addr = {
             .sun_family = AF_UNIX
     };
-    sprintf(bind_addr.sun_path, "/tmp/%d%ld", getpid(), time(NULL));
+    snprintf(bind_addr.sun_path, sizeof(bind_addr.sun_path), "/tmp/%d", getpid());
     sockfd = check(socket(AF_UNIX, CONNECTION_TYPE, 0));
-    check(bind(sockfd, &bind_addr, sizeof(bind_addr)));
-    check(connect(sockfd, (const struct sockaddr *) &servaddr, sizeof(servaddr)));
+    check(bind(sockfd, (const struct sockaddr*)&bind_addr, sizeof(bind_addr)));
+    check(connect(sockfd, &servaddr.def, sizeof(servaddr.local)));
 }
 
 void initialize_ipv4_socket(char* ipv4, uint16_t port) {
@@ -40,7 +43,7 @@ void revert_newlines(int linecount) {
     }
 }
 
-void main_loop(char *name) {
+void main_loop() {
     message_t msg;
     size_t linecount = 0;
     while (true) {
@@ -108,6 +111,7 @@ int main(int argc, char* argv[]) {
         perror("Wrong connection type, " expected);
         exit(1);
     }
+    name = argv[1];
     atexit(cleanup);
     struct sigaction act;
     sigemptyset(&act.sa_mask);
@@ -117,8 +121,7 @@ int main(int argc, char* argv[]) {
 
     message_t msg = {.type = msg_connect};
     strncpy(msg.name, argv[1], CLIENT_NAME_LEN);
-    //sendto(sockfd, &msg, sizeof(msg), 0, &servaddr, sizeof(servaddr));
     write(sockfd, &msg, sizeof(msg));
-    main_loop(argv[1]);
+    main_loop();
     return 0;
 }
