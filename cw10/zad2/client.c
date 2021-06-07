@@ -4,29 +4,34 @@
     "expected: <name> <local|net> <ip:port|/path/to/server/socket>\n"
 
 int sockfd;
+union addr servaddr;
 
 void cleanup() {
     write(sockfd, &(message_t){.type = msg_disconnect}, sizeof(message_t));
-    shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
 }
 
 void ext() { exit(0); }
 
 void initialize_unix_socket(char* path) {
-    struct sockaddr_un addr = {
+    servaddr.local = (struct sockaddr_un) {
         .sun_family = AF_UNIX,
     };
-    strcpy(addr.sun_path, path);
+    strcpy(servaddr.local.sun_path, path);
+    struct sockaddr_un bind_addr = {
+            .sun_family = AF_UNIX
+    };
+    sprintf(bind_addr.sun_path, "/tmp/%d%ld", getpid(), time(NULL));
     sockfd = check(socket(AF_UNIX, CONNECTION_TYPE, 0));
-    check(connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)));
+    check(bind(sockfd, &bind_addr, sizeof(bind_addr)));
+    check(connect(sockfd, (const struct sockaddr *) &servaddr, sizeof(servaddr)));
 }
 
 void initialize_ipv4_socket(char* ipv4, uint16_t port) {
-    struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(port)};
-    check(inet_pton(AF_INET, ipv4, &addr.sin_addr));
+    servaddr.net = (struct sockaddr_in){.sin_family = AF_INET, .sin_port = htons(port)};
+    check(inet_pton(AF_INET, ipv4, &servaddr.net.sin_addr));
     sockfd = check(socket(AF_INET, CONNECTION_TYPE, 0));
-    check(connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)));
+    check(connect(sockfd, &servaddr.def, sizeof(servaddr)));
 }
 
 void revert_newlines(int linecount) {
@@ -35,19 +40,21 @@ void revert_newlines(int linecount) {
     }
 }
 
-void main_loop() {
+void main_loop(char *name) {
     message_t msg;
     size_t linecount = 0;
     while (true) {
-        read(sockfd, &msg, sizeof(message_t));
+        int c = check(read(sockfd, &msg, sizeof(message_t)));
+        strncpy(msg.name, name, CLIENT_NAME_LEN);
         switch (msg.type) {
             case msg_waiting_for_player:
                 printf("Waiting for other player to join...\n");
                 linecount = 0;
                 break;
             case msg_start_game:
-                printf("Started game with user \'%s\'\n", msg.data.init.name);
-                printf("You are playing as \'%c\'\n\n", msg.data.init.symbol);
+                printf("Started game with user \'%s\'\n", msg.name);
+                printf("You are playing as \'%c\'\n\n", msg.data.symbol);
+                sleep(1);
                 break;
             case msg_board_update:
                 revert_newlines(linecount);
@@ -68,7 +75,7 @@ void main_loop() {
                 break;
             case msg_end_game:
                 revert_newlines(1);
-                printf("Game ended, %c\'s are victorious\n", msg.data.winner);
+                printf("Game ended, %c\'s are victorious\n", msg.data.symbol);
                 return;
             case msg_name_taken:
                 printf("That name is already taken, exiting...\n");
@@ -109,8 +116,9 @@ int main(int argc, char* argv[]) {
     sigaction(SIGINT, &act, NULL);
 
     message_t msg = {.type = msg_connect};
-    strncpy(msg.data.init.name, argv[1], CLIENT_NAME_LEN);
+    strncpy(msg.name, argv[1], CLIENT_NAME_LEN);
+    //sendto(sockfd, &msg, sizeof(msg), 0, &servaddr, sizeof(servaddr));
     write(sockfd, &msg, sizeof(msg));
-    main_loop();
+    main_loop(argv[1]);
     return 0;
 }

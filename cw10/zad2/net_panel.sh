@@ -11,4 +11,5 @@ tmux send-keys './client.out test1 net 127.0.0.1:42069' C-m
 tmux select-pane -t 0
 tmux split-window -v
 tmux send-keys './client.out test2 net 127.0.0.1:42069' C-m
+sleep 1
 tmux -2 attach-session -d

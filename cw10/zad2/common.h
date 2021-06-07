@@ -37,6 +37,8 @@
 
 #define TIMEOUT 1000
 
+#define CLIENT_MAX_CYCLES 5
+
 #define check(retval)                             \
     ({                                            \
         int error = retval;                       \
@@ -62,13 +64,16 @@ typedef struct message_t {
         msg_end_game,
         msg_ping,
     } type;
+    char name[CLIENT_NAME_LEN];
     union message_data_t {
-        struct init_t {
-            char name[CLIENT_NAME_LEN];
-            char symbol;
-        } init;
         char board[9];
-        char winner;
         int move_position;
+        char symbol;
     } data;
 } message_t;
+
+union addr {
+    struct sockaddr def;
+    struct sockaddr_in net;
+    struct sockaddr_un local;
+};
