@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="pl"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gniazda</title>
+    <link href="Gniazda_files/bootstrap.html" rel="stylesheet">
+    <link href="Gniazda_files/bootstrap-theme.html" rel="stylesheet">
+    <link href="Gniazda_files/docs.html" rel="stylesheet">
+    <link href="Gniazda_files/monokai_sublime.html" rel="stylesheet">
+    <script src="Gniazda_files/highlight.html"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+  </head>
+  <body>
+    <a class="sr-only" href="#content">Przejdź do treści</a>
+    <div class="bs-docs-header" id="content">
+      <div class="container">
+        <h1>Gniazda</h1>
+        <p>Uniwersalny mechanizm dwukierunkowej komunikacji procesów lokalnych i zdalnych</p>
+      </div>
+    </div>
+    <div class="container bs-docs-container">
+      <div class="row">
+        <div class="col-md-9" role="main">
+          <div>
+            <h1 id="introduction" class="page-header">Wprowadzenie</h1>
+            <p><strong>Gniazda</strong> (ang. <em>sockets</em>) są 
+kolejnym z dostępnych mechanizmów komunikacji międzyprocesowej. W 
+odróżnieniu od poznanych do tej pory (potoki, sygnały, komunikaty) obok 
+komunikacji lokalnej umożliwiają również komunikację między procesami 
+działającymi na różnych maszynach. Dostarczają nam warstwy abstrakcji 
+nad fizycznym (światłowód, przewód miedziany, sieć bezprzewodowa) i 
+logicznym (działanie protokołów sieciowych) sposobem połączenia maszyn.</p>
+          </div>
+          <div>
+            <h1 id="properties" class="page-header">Podstawowe cechy</h1>
+
+            <h3 id="properties-domain">Dziedzina</h3>
+            <p>Dziedzina określa jaka rodzina protokołów będzie 
+wykorzystywana do komunikacji i w jakiej przestrzeni będą umieszczane 
+nazwy identyfikujące gniazda.</p>
+            <ul>
+              <li><code>AF_UNIX</code>/<code>AF_LOCAL</code> — komunikacja lokalna w obrębie jednej maszyny</li>
+              <li><code>AF_INET</code> — komunikacja internetowa w oparciu o protokół sieciowy IPv4</li>
+              <li><code>AF_INET6</code> — komunikacja internetowa w oparciu o protokół sieciowy IPv6</li>
+            </ul>
+            <p>Inne dostępne to <code>AF_PACKET</code> (obsługa "surowych" ramek warstwy łącza danych), <code>AF_NETLINK</code> (komunikacja z interfejsami jądra), a także <code>AF_IPX</code>, <code>AF_X25</code>, <code>AF_AX25</code>, <code>AF_ATMPVC</code>, <code>AF_APPLETALK</code>…</p>
+            <p>W starszych źródłach można natrafić na używane w tym kontekście stałe które rozpoczynają&nbsp;się&nbsp;od <code>PF_*</code>. Ich znacznie jest w praktyce dokładnie takie samo:</p>
+            <blockquote>
+              <p>The manifest constants used under 4.x BSD for protocol families are <code>PF_UNIX</code>, <code>PF_INET</code>, and so on, while <code>AF_UNIX</code>, <code>AF_INET</code>,
+ and so on are used for address families.  However, already the BSD man 
+page promises: "The protocol family generally is the same as the address
+ family", and sub–sequent standards use <code>AF_*</code> everywhere.</p>
+              <footer><cite title="manual funkcji socket(2)">manual funkcji socket(2)</cite></footer>
+            </blockquote>
+
+            <h3 id="properties-type">Tryb komunikacji</h3>
+            <p>Komunikacja z wykorzystaniem gniazd może 
+odbywać&nbsp;się&nbsp;w różnych trybach które różnią się między sobą 
+swoimi cechami. Nie ma jednego uniwersalnego trybu — każda zaleta 
+pociąga za sobą&nbsp;jakąś&nbsp;wadę.</p>
+            <ul>
+              <li><code>SOCK_STREAM</code> — niezawodna, uporządkowana, 
+dwukierunkowa komunikacja strumieniowa oparta o połączenia; podobna w 
+swojej naturze do rozmowy telefonicznej
+                <ul>
+                  <li><strong>niezawodna</strong> — wszystkie wysłane 
+dane zostaną dostarczone (chyba że będzie to niemożliwe, co zostanie 
+wykryte); protokół komunikacyjny zawiera mechanizmy wykrywania i obsługi
+ utraty pakietów danych</li>
+                  <li><strong>uporządkowana</strong> — dane są 
+dostarczane do adresata w kolejności wysłania ich przez nadawcę; 
+protokół komunikacyjny zawiera mechanizmy które porządkują pakiety 
+danych których kolejność została zamieniona w transporcie</li>
+                  <li><strong>strumieniowa</strong> — dane przekazywane 
+są do odbiorcy jako sekwencja kolejnych bajtów, niezależnie od tego 
+jakimi „porcjami” wysyłał je klient; protokół komunikacyjny nie 
+dostarcza "obiektu" wiadomości/komunikatu, konieczna jest własna ich 
+implementacja (np. przez "znaczniki" końca kolejnych wiadomości 
+umieszczane w strumieniu)</li>
+                  <li><strong>oparta o połączenia ("połączeniowa")</strong>
+ — przekazywanie danych wymaga zestawienia połączenia, które zostanie 
+wykorzystane do komunikacji; protokół komunikacyjny dostarcza metod 
+nawiązania połączenia i jego utrzymania</li>
+                </ul>
+              </li>
+              <li><code>SOCK_DGRAM</code> — zawodna, nieuporządkowana, bezpołączeniowa komunikacja datagramowa; podobna w swojej naturze do przesyłania listów
+                <ul>
+                  <li><strong>zawodna</strong> — dane mogą zaginąć w 
+trakcie transportu a nadawca nie otrzyma o tym żadnej informacji; 
+protokół komunikacyjny sam w sobie nie wykrywa i nie obsługuje utraty 
+pakietów danych</li>
+                  <li><strong>nieuporządkowana</strong> — te same dane 
+(w przypadku kiedy udało im się&nbsp;dotrzeć) mogą zostać dostarczone 
+wielokrotnie lub kolejność kolejnych komunikatów może zostać wymieszana</li>
+                  <li><strong>bezpołączeniowa</strong> — przed wysłaniem danych nie jest zestawiane połączenie, są one po prostu wysyłane na adres odbiorcy oczekującego datagramów
+                  </li><li><strong>datagramowa</strong> — odbiorca 
+otrzymuje dane w postaci komunikatów, zostaje zachowany podział na 
+kolejne wiadomości — nie są łączone w jeden strumień</li>
+                </ul>
+              </li>
+            </ul>
+            <p>Inne dostępne to <code>SOCK_SEQPACKET</code> (łączy cechy <code>SOCK_STREAM</code> i <code>SOCK_DGRAM</code>), <code>SOCK_RAW</code> (pozwala na samodzielne konstruowanie struktur — ramek, pakietów — wysyłanych przez system operacyjny do sieci), <code>SOCK_RDM</code>…</p>
+
+            <h3 id="properties-protocol">Protokół</h3>
+            <p>Protokół określa sposób transportowania danych 
+przesyłanych przez gniazdo. W większości przypadków dla danego trybu 
+komunikacji w danej dziedzinie istnieje jeden konkretny "słuszny 
+protokół". Dla <code>AF_INET</code>/<code>AF_INET6</code>…</p>
+            <ul>
+              <li>… w trybie <code>SOCK_STREAM</code> zostanie użyty protokół TCP</li>
+              <li>… w trybie <code>SOCK_DGRAM</code> zostanie użyty protokół UDP</li>
+            </ul>
+          </div>
+          <div>
+            <h1 id="addresses" class="page-header">Adresy gniazd</h1>
+            <p>Z każdym gniazdem, niezależnie od tego jaką rodzinę 
+protokołów wykorzystuje, powiązana jest struktura opisująca jego adres. 
+Jest ona wykorzystywana zarówno do określenia gdzie gniazdo ma 
+nasłuchiwać, jak również do przechowywania informacji o podłączonym do 
+serwera kliencie. Standardowym typem opisującym 
+taką&nbsp;strukturę&nbsp;jest <code>struct sockaddr</code> zdefiniowany następująco:</p>
+            <pre><code>struct sockaddr {
+    sa_family_t sa_family;
+    char        sa_data[14];
+}</code></pre>
+            <p>W praktyce wykorzystywane są jednak dedykowane dla poszczególnych dziedzin struktury adresowe, które <strong>na początku zawierają odpowiednik <code>sa_family</code> ustawiony na odpowiednią rodzinę adresów</strong> i są rzutowane na <code>struct sockaddr</code> (lub dokonywane jest rzutowanie ze <code>struct sockaddr</code> do nich).</p>
+
+            <h3 id="addresses-inet"><code>AF_INET</code></h3>
+            <p>Wykorzystywana jest struktura <code>sockaddr_in</code> zdefiniowana w pliku nagłówkowym <code>netinet/in.h</code>:</p>
+            <pre><code>struct sockaddr_in {
+    sa_family_t    sin_family; /* address family: AF_INET */
+    in_port_t      sin_port;   /* port in network byte order */
+    struct in_addr sin_addr;   /* internet address */
+};
+
+/* Internet address. */
+struct in_addr {
+    uint32_t       s_addr;     /* address in network byte order */
+};</code></pre>
+            <p>Jeśli chcemy by struktura opisywała dowolny adres IP posiadany przez maszynę, jako <code>sin_addr.s_addr</code> w strukturze ustawiamy stałą&nbsp;<code>INADDR_ANY</code>. Aby zezwalać&nbsp;wyłącznie na połączenia lokalne należy użyć <code>INADDR_LOOPBACK</code>.</p>
+            <p>Numer portu (<code>sin_port</code>) jest 16–bitową liczbą
+ (od 0 do 65535). Porty o numerach mniejszych niż 1024 uznawane 
+są&nbsp;za uprzywilejowane i nasłuchiwanie na nich wymaga posiadania 
+odpowiednich uprawnień (najczęściej superużytkownika). Podanie jako 
+numeru portu 0 (zero) oznacza, że system operacyjny ma wybrać dowolny 
+dostępny port (z zakresu tzw. portów efemerycznych — na Linuksie zwykle 
+są to numery od 32768 do 60999).</p>
+            <p>Aby przekształcić&nbsp;zwykły numer portu do "network 
+byte order" (w którym pierwszy bajt jest najbardziej znaczący), należy 
+skorzystać z funkcji <code><a href="#endianess-functions-htobeNN">htobe16(…)</a></code> lub <code><a href="#endianess-functions-htons">htons(…)</a></code>.</p>
+            <p>Z danym portem i adresem sieciowym można powiązać na 
+maszynie tylko jedno gniazdo — ponowne powiązanie wymaga wcześniejszego 
+zamknięcia poprzedniego gniazda.</p>
+
+            <h3 id="addresses-inet6"><code>AF_INET6</code></h3>
+            <p>Wykorzystywana jest struktura <code>sockaddr_in6</code> zdefiniowana w pliku nagłówkowym <code>netinet/in.h</code>:</p>
+            <pre><code>struct sockaddr_in6 {
+    sa_family_t     sin6_family;   /* AF_INET6 */
+    in_port_t       sin6_port;     /* port number */
+    uint32_t        sin6_flowinfo; /* IPv6 flow information */
+    struct in6_addr sin6_addr;     /* IPv6 address */
+    uint32_t        sin6_scope_id; /* Scope ID (new in 2.4) */
+};
+
+struct in6_addr {
+    unsigned char   s6_addr[16];   /* IPv6 address */
+};</code></pre>
+            <p>Jeśli chcemy by struktura opisywała dowolny adres IPv6 posiadany przez maszynę, jako <code>sin6_addr</code> w strukturze ustawiamy stałą&nbsp;<code>in6addr_any</code>. Aby zezwalać&nbsp;wyłącznie na połączenia lokalne należy użyć <code>in6addr_loopback</code>. Należy mieć na uwadze, że w zależności od konfiguracji systemu gniazda w dziedzinie <code>AF_INET6</code>
+ nasłuchujące na wszystkich adresach IPv6 mogą domyślnie przyjmować 
+również&nbsp;połączenia na wszystkich adresach IPv4 — wówczas adres 
+przechowywany w strukturze zostanie w specyficzny sposób przekształcony.</p>
+            <p>W odniesieniu do <code>sin6_port</code> obowiązują&nbsp;takie same zasady jak w przypadku <code>sin_port</code> w przypadku rodziny adresów <code>AF_INET</code>.</p>
+
+            <h3 id="addresses-unix"><code>AF_UNIX</code></h3>
+            <p>Wykorzystywana jest struktura <code>sockaddr_un</code> zdefiniowana w pliku nagłówkowym <code>sys/un.h</code>:</p>
+            <pre><code>#define UNIX_PATH_MAX    108
+
+struct sockaddr_un {
+    sa_family_t sun_family;               /* AF_UNIX */
+    char        sun_path[UNIX_PATH_MAX];  /* pathname */
+}</code></pre>
+            <p><code>sun_path</code> jest zazwyczaj ścieżką do pliku 
+który reprezentuje gniazdo (sama komunikacja nie odbywa się jednak za 
+pomocą&nbsp;systemu plików i nie zadziała też przez dysk sieciowy - np. 
+Network File System), a uprawnienia do niego kontrolują możliwość 
+podłączenia się do socketu. W przypadku gdy chcemy powiązać gniazdo ze 
+ścieżką i taki plik już istnieje, wystąpi błąd (nawet jeśli jest to plik
+ gniazda pozostały po poprzednim wykonaniu naszego programu). Trzeba 
+pamiętać o jego usunięciu np. funkcją&nbsp;<code>int unlink(const char *pathname)</code> z nagłówka <code>unistd.h</code>.</p>
+            <p>W systemach z rodziny Linux istnieje 
+możliwość&nbsp;utworzenia tzw. gniazda abstrakcyjnego (np. kiedy nasz 
+system plików nie pozwala na utworzenie i-węzła reprezentującego 
+gniazdo). Realizuje się to przez ustawienie pierwszego bajtu ścieżki 
+(zerowego indeksu tablicy) na bajt zerowy (<code>'\0'</code>) — pozostałe bajty tablicy tworzą identyfikator takiego gniazda.</p>
+            <p>Długość&nbsp;ścieżki nie może przekroczyć&nbsp;<code>UNIX_PATH_MAX</code>
+ (wliczając w to bajt zerowy umieszczony na jej końcu, także w przypadku
+ gniazd abstrakcyjnych). W przypadku Linuksa stała ta ma wartość 108, w 
+przypadku macOS jest to 104. Istnieją systemy gdzie ścieżka do gniazda 
+UNIX ma maksymalnie 92 bajty.</p>
+          </div>
+          <div>
+            <h1 id="address-functions" class="page-header">Funkcje związane z adresami</h1>
+
+            <p>Korzystanie z czterech poniższych funkcji wymaga dołączenia nagłóków <code>sys/socket.h</code>, <code>netinet/in.h</code> oraz <code>arpa/inet.h</code>, a pondato wcześniejszego zdefiniowania <code>_BSD_SOURCE</code> lub <code>_SVID_SOURCE</code>:</p>
+
+            <h3 id="address-functions-inet_aton">int inet_aton(const char *cp, struct in_addr *inp)</h3>
+            <p>W przypadku sukcesu (podany string zawierał poprawny adres) <code>inet_aton(…)</code> zwraca <strong>w odróżnieniu od wielu funkcji <code>niezerową wartość</code>, a w przypadku błędu <code>0</code></strong>.</p>
+            <ul>
+              <li><code>cp</code> — wskaźnik na bufor znakowy zawierający adres IP zapisany jako tekst</li>
+              <li><code>inp</code> — wskaźnik na zaalokowany obszar pamięci przeznaczonej na przechowywanie struktury z adresem</li>
+            </ul>
+
+            <h3 id="address-functions-inet_ntoa">char *inet_ntoa(struct in_addr in)</h3>
+            <p>Na podstawie podanej struktury tworzy tekstową reprezentację adresu IPv4 i zwraca wskaźnik do bufora zawierającego ten adres. <strong>Bufor
+ ten jest ponownie wykorzystywany przez kolejne wywołania tej funkcji, 
+więc powstały napis należy we własnym zakresie skopiować&nbsp;w inne 
+miejsce pamięci!</strong></p>
+            <ul>
+              <li><code>in</code> — struktura opisująca adres IP</li>
+            </ul>
+
+            <h3 id="address-functions-inet_pton">int inet_pton(int af, const char *src, void *dst)</h3>
+            <p>Funkcja ta przekształca podany jako string adres z danej rodziny adresów w odpowiedniego rodzaju strukturę opisującą adres.</p>
+            <p>Dla poprawnego adresu zwraca <code>1</code>, dla błędnego zwraca <code>0</code>, a dla nieobsługiwanej rodziny adresów zwraca <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>af</code> — rodzina adresów; <code>AF_INET</code> dla IPv4, <code>AF_INET6</code> dla IPv6 — <strong>inne wartości nie są obsługiwane</strong></li>
+              <li><code>src</code> — wskaźnik na bufor znakowy zawierający odpowiedni dla rodziny adres zapisany jako tekst</li>
+              <li><code>dst</code> — wskaźnik na zaalokowany obszar pamięci przeznaczonej na przechowywanie właściwej dla rodziny adresów struktury (<code>struct in_addr</code> dla <code>AF_INET</code> bądź <code>struct in6_addr</code> dla <code>AF_INET6</code>)</li>
+            </ul>
+
+            <h3 id="address-functions-inet_ntop">const char *inet_ntop(int af, const void *src, char *dst, socklen_t size)</h3>
+            <p>Funkcja zamienia adres zawarty w strukturze właściwej dla danej rodziny adresów na jego tekstowy zapis.</p>
+            <p>Zwraca wskaźnik na napis jeśli wywołanie zakończyło się&nbsp;sukcesem lub <code>NULL</code>a i ustawia <code>errno</code> w przypadku błędu.</p>
+            <ul>
+              <li><code>af</code> — rodzina adresów; <code>AF_INET</code> dla IPv4, <code>AF_INET6</code> dla IPv6 — <strong>inne wartości nie są obsługiwane</strong></li>
+              <li><code>src</code> — wskaźnik na właściwą&nbsp;dla rodzinwy adresów strukturę przechowującą adres</li>
+              <li><code>dst</code> — wskaźnik na zaalokowany dla bufora znakowego obszar pamięci w którym powinna zostać umieszczona tekstowa reprezentacja adresu</li>
+              <li><code>size</code> – ilość bajtów dostępnych w buforze docelowym (minimum <code>INET_ADDRSTRLEN</code> dla <code>AF_INET</code> i <code>INET6_ADDRSTRLEN</code> dla <code>AF_INET6</code></li>
+            </ul>
+
+            <hr>
+
+            <p>Poniższa funkcja została zdefiniowana w nagłówku <code>netdb.h</code>:</p>
+            <h3 id="address-functions-gethostbyname">struct hostent *gethostbyname(const char *name)</h3>
+            <p>Funkcja zwraca adres/adresy powiązane z podaną 
+nazwą&nbsp;domenową. W przypadku podania jako argument adresu IP w 
+postaci tekstowej, zwraca ten adres jako odpowiednią&nbsp;strukturę.</p>
+            <p><strong><code>gethostbyname(…)</code> zostało uznane za przestarzałe i zaleca się korzystanie z <code>getaddrinfo(…)</code>; funkcja nie radzi sobie z adresami IPv6.</strong></p>
+            <p>Funkcja zwraca wskaźnik na <code>struct hostent</code> jeśli wywołanie zakończyło się&nbsp;sukcesem lub <code>NULL</code> i ustawia <code>h_errno</code> (odpowiednik <code>errno</code>
+ ze specjalizowanymi kodami błędów) w przypadku błędu. Kolejne wywołania
+ mogą nadpisać struktury otrzymane w wyniku poprzednich wywołań — aby 
+tego uniknąć&nbsp;konieczne jest wykonania kopi struktury 
+wartość&nbsp;po wartości.</p>
+            <pre><code>struct hostent {
+    char  *h_name;            /* official name of host */
+    char **h_aliases;         /* alias list */
+    int    h_addrtype;        /* host address type */
+    int    h_length;          /* length of address */
+    char **h_addr_list;       /* list of addresses */
+}
+#define h_addr h_addr_list[0] /* for backward compatibility */</code></pre>
+            <p>Chociaż <code>h_addr_list</code> jest zadeklarowana jako tablica stringów, to w rzeczywistości przechowuje struktury o rozmiarze <code>h_length</code>, odpowiadające rodzinie adresów znajdującej się w <code>h_addrtype</code> (<code>AF_INET</code>); ostatni element tablicy jest <code>NULL</code>em. Należy wykonywać odpowiednie rzutowania (na <code>struct in_addr</code> bądź <code>struct in6_addr</code>).
+ Jeśli interesuje nas dowolny z adresów powiązanych z nazwą (chociaż 
+nierzadko otrzymamy tylko jeden), to możemy odwołać się&nbsp;do <code>h_addr</code>.</p>
+
+            <hr>
+
+            <p>Poniższa funkcja dostępna jest&nbsp;w pliku nagłówkowym <code>unistd.h</code> i wymaga wcześniejszego zdefiniowania <code>_BSD_SOURCE</code>:</p>
+
+            <h3 id="address-functions-gethostname">int gethostname(char *name, size_t len)</h3>
+            <p>Funkcja służy do pobierania nazwy lokalnego komputera. Gwarantowane jest że jej długość&nbsp;nie przekroczy stałej <code>HOST_NAME_MAX</code>, którą można znaleźć&nbsp;w pliku nagłówkowym <code>limits.h</code> (dla Linuksa ta stała wynosi 64).</p>
+            <p>W przypadku sukcesu <code>gethostname(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>name</code> — wskaźnik na obszar pamięci w którym ma zostać umieszczona nazwa hosta</li>
+              <li><code>len</code> — wielkość zaalokowanego obszaru przeznaczona na nazwę (nie wliczamy końcowego <code>'\0'</code>!)</li>
+            </ul>
+
+          </div>
+          <div>
+            <h1 id="endianess-functions" class="page-header">Funkcje do obsługi zmiany kolejności bajtów</h1>
+            <p>Różne architektury procesorów mogą&nbsp;różnić się między
+ sobą&nbsp;sposobem przechowywania liczb w pamięci. Wyróżnia 
+się&nbsp;dwie metody:</p>
+            <ul>
+              <li><strong>little–endian</strong> — jako pierwszy 
+przechowywany/wysyłany jest najmniej znaczący (najmłodszy) bajt liczby 
+(tego sposobu używają procesory x86 i x86-64)</li>
+              <li><strong>big–endian</strong> — jako pierwszy 
+przechowywany/wysyłany jest najbardziej znaczący (najstarszy) bajt 
+liczby (ten sposób powszechnie obowiązuje w protokołach sieciowych)</li>
+            </ul>
+            <p>Dla przykładu, liczba <code>0xAABBCCDD</code> będzie przechowywana w obu systemach następująco:</p>
+            <table class="table table-striped table-hover">
+              <tbody><tr>
+                <th></th>
+                <th>mem[0]</th>
+                <th>mem[1]</th>
+                <th>mem[2]</th>
+                <th>mem[3]</th>
+              </tr>
+              <tr>
+                <th>little–endian</th>
+                <td>0xDD</td>
+                <td>0xCC</td>
+                <td>0xBB</td>
+                <td>0xAA</td>
+              </tr>
+              <tr>
+                <th>big–endian</th>
+                <td>0xAA</td>
+                <td>0xBB</td>
+                <td>0xCC</td>
+                <td>0xDD</td>
+              </tr>
+            </tbody></table>
+            <p>W przypadku wielu architektur kolejność&nbsp;bajtów może 
+być przełączana — są to np. nowsze wersje ARM, SPARC i PowerPC, a także 
+MIPS.</p>
+            <p>W związku z tym, aby uchronić&nbsp;się przed niewłaściwym
+ zinterpretowaniem liczb w sytuacji kiedy klient i serwer stosują różną 
+kolejność bajtów, przyjmuje się&nbsp;że przed wysyłką dane powinny 
+być&nbsp;zawsze skonwertowane do obowiązującego w sieciach systemu 
+big–endian.</p>
+
+            <hr>
+
+            <p>Poniższa rodziny funkcji dostępna jest na Linuksie w pliku nagłówkowym <code>endian.h</code> i wymaga wcześniejszego zdefiniowania <code>_DEFAULT_SOURCE</code> (w miejsce <b>NN</b>
+ należy podstawić ilość&nbsp;bitów, jaką zajmuje liczba danego typu — 16
+ dla liczby 2-bajtowej, 32 dla liczby 4-bajtowej i 64 dla liczby 
+8-bajtowej):</p>
+
+            <h3 id="endianess-functions-htobeNN">uint<b>NN</b>_t htobe<b>NN</b>(uint<b>NN</b>_t host_<b>NN</b>bits)</h3>
+            <p>Przekształca podaną liczbę <b>NN</b>-bitową z kodowania hosta na kodowanie big–endian (jeśli host używa big–endian, funkcja zwraca liczbę w niezmienionej postaci).</p>
+
+            <h3 id="endianess-functions-htoleNN">uint<b>NN</b>_t htole<b>NN</b>(uint<b>NN</b>_t host_<b>NN</b>bits)</h3>
+            <p>Przekształca podaną liczbę <b>NN</b>-bitową z kodowania 
+hosta na kodowanie little–endian (jeśli host używa little–endian, 
+funkcja zwraca liczbę w niezmienionej postaci).</p>
+
+            <h3 id="endianess-functions-beNNtoh">uint<b>NN</b>_t be<b>NN</b>toh(uint<b>NN</b>_t big_endian_<b>NN</b>bits)</h3>
+            <p>Przekształca podaną liczbę <b>NN</b>-bitową z kodowania big–endian na kodowanie hosta (jeśli host używa big–endian, funkcja zwraca liczbę w niezmienionej postaci).</p>
+
+            <h3 id="endianess-functions-leNNtoh">uint<b>NN</b>_t le<b>NN</b>toh(uint<b>NN</b>_t little_endian_<b>NN</b>bits)</h3>
+            <p>Przekształca podaną liczbę <b>NN</b>-bitową z kodowania 
+little–endian na kodowanie hosta (jeśli host używa little–endian, 
+funkcja zwraca liczbę w niezmienionej postaci).</p>
+
+            <hr>
+
+            <p>Poniższe funkcje zdefiniowane są w pliku nagłówkowym <code>arpa/inet.h</code> (zauważ, że brak tutaj funkcji pozwalającej na konwersję liczb 64-bitowych):</p>
+
+            <h3 id="endianess-functions-htonl">uint32_t htonl(uint32_t hostlong)</h3>
+            <p>Przekształca podaną liczbę 32-bitową (l w nazwie jak 
+long) z kodowania hosta na kodowanie big–endian (jeśli host używa 
+big–endian, funkcja zwraca liczbę w niezmienionej postaci).</p>
+
+            <h3 id="endianess-functions-htons">uint16_t htons(uint16_t hostshort)</h3>
+            <p>Przekształca podaną liczbę 16-bitową (s w nazwie jak 
+short) z kodowania hosta na kodowanie big–endian (jeśli host używa 
+big–endian, funkcja zwraca liczbę w niezmienionej postaci).</p>
+
+            <h3 id="endianess-functions-ntohl">uint32_t ntohl(uint32_t netlong)</h3>
+            <p>Przekształca podaną liczbę 32-bitową (l w nazwie jak 
+long) z kodowania big–endian na kodowanie hosta (jeśli host używa 
+big–endian, funkcja zwraca liczbę w niezmienionej postaci).</p>
+
+            <h3 id="endianess-functions-ntohs">uint16_t ntohs(uint16_t netshort)</h3>
+            <p>Przekształca podaną liczbę 16-bitową (s w nazwie jak 
+short) z kodowania big–endian na kodowanie hosta (jeśli host używa 
+big–endian, funkcja zwraca liczbę w niezmienionej postaci).</p>
+          </div>
+          <div>
+            <h1 id="functions" class="page-header">Funkcje do obsługi gniazd</h1>
+            <p>Wszystkie poniższe funkcje zostały zdefiniowane w pliku nagłówkowym <code>sys/socket.h</code>. Dla zapewnienia przenośności kodu rozsądnie jest również dołączyć plik nagłówkowy <code>sys/types.h</code>.</p>
+
+            <h3 id="functions-socket">int socket(int domain, int type, int protocol)</h3>
+            <p>Funkcja ta tworzy gniazdo i zwraca numer powiązanego z nim deskryptora albo <code>-1</code> w przypadku błędu i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>domain</code> — jedna z <a href="#properties-domain">opisanych wcześniej stałych</a> określających rodzinę protokołów wykorzystywanych do komunikacji</li>
+              <li><code>type</code> — jeden z <a href="#properties-type">opisanych wcześniej trybów komunikacji</a>, ewentualnie zORowany z następującymi flagami:
+                <ul>
+                  <li><code>SOCK_NONBLOCK</code> — gniazdo w trybie nieblokującym (ustawienie <code>O_NONBLOCK</code> na deskryptorze gniazda)</li>
+                  <li><code>SOCK_CLOEXEC</code> — zamknij deskryptor gniazda w chwili wywołania <code>execve</code> (ustawienie <code>FD_CLOEXEC</code> na deskryptorze gniazda)</li>
+                </ul>
+              </li>
+              <li><code>protocol</code> — protokół wykorzystywany do komunikacji; podanie wartości innej niż <code>0</code>
+ (automatyczny wybór na podstawie pozostałych ustawień) jest konieczne 
+tylko jeśli istnieje wiele protokołów związanych z 
+daną&nbsp;kombinacją&nbsp;dziedziny i trybu; w przypadku gniazd <code>AF_PACKET</code> określa rodzaj ramek warstwy łącza które chcemy otrzymywać</li>
+            </ul>
+
+            <h3 id="functions-bind">int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)</h3>
+            <p>Po utworzeniu gniazda przy użyciu <code>socket(…)</code> 
+nie ma ono przypisanej swojej nazwy, w związku z&nbsp;czym nie ma 
+możliwości wysyłania do niego danych (wyjątkiem są gniazda 
+"połączeniowe" po stronie klienta — nie muszą być&nbsp;zaadresowane). <code>bind(…)</code> służy właśnie do związania gniazda z jego nazwą (adresem).</p>
+            <p>W przypadku sukcesu <code>bind(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>addr</code> — wskaźnik do <a href="#addresses">opisanej wcześniej struktury</a> definiującej adres z którym ma zostać związane gniazdo</li>
+              <li><code>addrlen</code> — wielkość struktury przekazanej w drugim argumencie (np. wynik <code>sizeof(…)</code>)</li>
+            </ul>
+            <p>W domenie internetu (<code>AF_INET</code>/<code>AF_INET6</code>) skorzystanie z funkcji <code>sendto(…)</code>
+ (w przypadku komunikacji datagramowej) lub dowolnej funkcji do wysyłki 
+danych (w przypadku komunikacji strumieniowej) powoduje automatyczne 
+związanie gniazda z portem efemerycznym — tak, jak gdyby wywołano <code>bind(…)</code> przekazując strukturę z numerem portu ustawionym na 0 (zero).</p>
+            <p>W domenie komunikacji lokalnej (<code>AF_UNIX</code>) nie ma potrzeby korzystania po stronie klienta z funkcji <code>bind(…)</code>
+ jeśli korzystamy z komunikacji strumieniowej lub nie potrzebujemy 
+odbierać odpowiedzi na datagramy. W przeciwnym razie należy wywołać 
+funkcję <code>bind(…)</code>&nbsp;z argumentem <code>addrlen</code> ustawionym na <code>sizeof(sa_family_t)</code> lub ustawić&nbsp;na gnieździe flagę&nbsp;<code>SO_PASSCRED</code>; są to dwie metody, które powodują związanie gniazda z wygenerowaną losowo abstrakcyjną nazwą (autobind).</p>
+
+            <h3 id="functions-listen">int listen(int sockfd, int backlog)</h3>
+            <p>Funkcja ta dotyczy gniazd connection–oriented (<code>SOCK_STREAM</code>) — odpowiada za rozpoczęcie akceptowania połączeń od klientów.</p>
+            <p>W przypadku sukcesu <code>listen(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda
+              </li><li><code>backlog</code> — maksymalna ilość połączeń 
+które mogą oczekiwać na zaakceptowanie (kolejne połączenia będą od razu 
+odrzucane lub będą całkowicie ignorowane przez system)
+            </li></ul>
+
+            <h3 id="functions-connect">int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)</h3>
+            <p>Działanie tej funkcji zależy od tego na jakiego rodzaju gnieździe zostanie wywołania.</p>
+            <p>Dla gniazd strumieniowych: służy do połączenia się klienta z serwerem, z powodzeniem może zostać wywołana tylko raz.</p>
+            <p>Dla gniazd datagramowych: ustawia domyślny adres na który
+ adres będą wysyłane datagramy oraz jedyny adres z którego będą one 
+odbierane (na danym gnieździe) — w odróżnieniu od <code>connect(…)</code> na gniazdach strumieniowych, można ją wywołać wielokrotnie.</p>
+            <p>W przypadku sukcesu <code>connect(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda zwrócony przez <code>socket(…)</code></li>
+              <li><code>addr</code> — wskaźnik do <a href="#addresses">opisanej wcześniej struktury</a> definiującej adres z którym ma zostać związane gniazdo</li>
+              <li><code>addrlen</code> — wielkość struktury przekazanej w drugim argumencie (np. wynik <code>sizeof(…)</code>)</li>
+            </ul>
+
+            <h3 id="functions-accept">
+              int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)<br>
+              int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags)
+            </h3>
+            <p>Funkcje te służą do akceptowania oczekujących połączeń na
+ gniazdach połączeniowych. Mogą blokować się do czasu pojawienia się 
+połączenia lub zawsze natychmiast powracać, w zależności od tego czy na 
+deskryptorze gniazda ustawione jest <code>O_NONBLOCK</code>.</p>
+            <p>Po wywołaniu zostaje zaakceptowane pierwsze z 
+oczekujących na gnieździe połączeń i zostaje zwrócony deskryptor służący
+ do komunikacji z klientem który się połączył lub <code>-1</code> i ustawia <code>errno</code> gdy wystąpił błąd.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>addr</code> — wskaźnik do miejsca w pamięci przygotowanego do przyjęcia struktury z adresem klienta który się połączył lub <code>NULL</code> jeśli adres nie ma być zapisywany</li>
+              <li><code>addrlen</code> — wskaźnik do zmiennej określającej zaalokowaną wielkość struktury <code>addr</code> (jeśli struktura opisująca adres połączonego klienta jest większa niż <code>addrlen</code>, zostanie przycięta do tego rozmiaru); po wywołaniu <code>accept(…)</code> w tej zmiennej znajdzie się faktyczna wielkość zapisanej struktury, jeśli była ona mniejsza niż <code>addrlen</code>; jeśli <code>addr</code> było równe <code>NULL</code>, <code>addrlen</code> również musi być <code>NULL</code>em</li>
+              <li><code>flags</code> — flagi <code>SOCK_NONBLOCK</code> i <code>SOCK_CLOEXEC</code> o znaczeniu identycznym jak w przypadku <code>socket(…)</code>, ale w odniesieniu do deskryptora gniazda służącego do komunikacji z klientem; gdy ustawione na <code>0</code>, to <code>accept4(…)</code> działa dokładnie tak samo jak <code>accept(…)</code></li>
+            </ul>
+
+            <h3 id="functions-send">
+              ssize_t write(int sockfd, const void *buf, size_t len)<br>
+              ssize_t send(int sockfd, const void *buf, size_t len, int flags)<br>
+              ssize_t sendto(int sockfd, const void *buf, size_t len, 
+int flags, const struct sockaddr *dest_addr, socklen_t addrlen)<br>
+              ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags)
+            </h3>
+            <p>Służą do wysyłania danych z użyciem gniazda. W przypadku 
+gdy dla gniazda datagramowego nie ustawiono domyślnego odbiorcy, nie 
+jest możliwe korzystanie z pierwszych dwóch funkcji i konieczne jest 
+wykorzystanie <code>sendto(…)</code>.</p>
+            <p>Funkcja <code>sendmsg(…)</code> jest zaawansowana i nie 
+będzie opisywana. Może zostać użyta m. in. do przesłania między dwoma 
+procesami na tej samej maszynie deskryptora pliku — wymaga to jednak 
+ręcznego utworzenia wiadomości o odpowiedniej strukturze.</p>
+            <p>Zwracają ilość wysłanych bajtów lub <code>-1</code> i ustawiają <code>errno</code> w razie niepowodzenia.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>buf</code> — wskaźnik do danych które chcemy wysłać</li>
+              <li><code>len</code> — długość danych w <code>buf</code> które chcemy wysłać</li>
+              <li><code>flags</code> — flagi określające sposób wysyłki danych lub ich rodzaj:
+                <ul>
+                  <li><code>MSG_DONTWAIT</code> — wysyła dane w sposób nieblokujący (tak jak po ustawieniu <code>SOCK_NONBLOCK</code> dla gniazda)</li>
+                  <li><code>MSG_MORE</code> — dla socketów 
+strumieniowych po TCP wpływa na sposób pakietyzacji danych, dla socketów
+ datagramowych po UDP opóźnia wysyłkę komunikatu do momentu aż nastąpi 
+wywołanie <code>send(…)</code> bez tej flagi i łączy dane ze wszystkich wywołań w jeden komunikat</li>
+                  <li><code>MSG_NOSIGNAL</code> — nie wysyłaj do procesu <code>SIGPIPE</code> jeśli druga strona zerwała połączenie</li>
+                  <li>…</li>
+                </ul>
+              </li>
+              <li>Gdy <code>flags</code> jest ustawione na <code>0</code>, to <code>send(…)</code> działa dokładnie tak samo jak <code>write(…)</code>.</li>
+              <li><code>dest_addr</code> — wskaźnik do struktury opisującej adres odbiorcy danych; dla gniazd połączeniowych powinien być <code>NULL</code>em</li>
+              <li><code>addrlen</code> — długość struktury opisywanej przez <code>dest_addr</code>; dla gniazd połączeniowych powinna być ustawiona na <code>0</code></li>
+            </ul>
+
+            <h3 id="functions-recv">
+              ssize_t read(int sockfd, const void *buf, size_t len)<br>
+              ssize_t recv(int sockfd, const void *buf, size_t len, int flags)<br>
+              ssize_t recvfrom(int sockfd, const void *buf, size_t len, 
+int flags, struct sockaddr *src_addr, socklen_t *addrlen)<br>
+              ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags)
+            </h3>
+            <p>Służą do odbierania danych z użyciem gniazda.</p>
+            <p>Funkcja <code>recvmsg(…)</code> jest zaawansowana i podobnie jak <code>sendmsg(…)</code> nie będzie opisywana.</p>
+            <p>Zwracają ilość odebranych bajtów lub <code>-1</code> i ustawiają <code>errno</code> w razie niepowodzenia. Zwrócenie <code>0</code> oznacza że druga strona połączenia zamknęła kanał komunikacji.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>buf</code> — wskaźnik do miejsca w pamięci w którym chcemy zapisać dane</li>
+              <li><code>len</code> — maksymalna ilość bajtów które zostaną odczytane z gniazda i zapisane w <code>buf</code> (w przypadku komunikacji datagramowej: jeśli <code>len</code> jest mniejsze niż długość odebranego datagramu, to nadmiarowe bajty zostaną&nbsp;utracone!)</li>
+              <li><code>flags</code> — flagi określające sposób odbioru danych:
+                <ul>
+                  <li><code>MSG_DONTWAIT</code> — odbiera dane w sposób nieblokujący (tak jak po ustawieniu <code>SOCK_NONBLOCK</code> dla gniazda)</li>
+                  <li><code>MSG_WAITALL</code> — blokuje wywołanie do momentu aż zostanie odebranych dokładnie <code>len</code> bajtów (chyba że zostanie odebrany sygnał lub połączenie zostanie przerwane)</li>
+                  <li><code>MSG_PEEK</code> — odczytuje oczekujące na gnieździe dane i nie usuwa ich z bufora gniazda (kolejne wywołanie ponownie je zwróci)</li>
+                  <li><code>MSG_NOSIGNAL</code> — nie wysyłaj do procesu <code>SIGPIPE</code> jeśli druga strona zerwała połączenie</li>
+                  <li>…</li>
+                </ul>
+              </li>
+              <li>Gdy <code>flags</code> jest ustawione na <code>0</code>, to <code>recv(…)</code> działa dokładnie tak samo jak <code>read(…)</code>.</li>
+              <li><code>src_addr</code> — wskaźnik do miejsca w pamięci przygotowanego do przyjęcia struktury z adresem klienta który wysłał dane lub <code>NULL</code> jeśli adres nie ma być zapisywany</li>
+              <li><code>addrlen</code> — wskaźnik do zmiennej określającej zaalokowaną wielkość struktury <code>src_addr</code> (jeśli struktura opisująca adres połączonego klienta jest większa niż <code>addrlen</code>, zostanie przycięta do tego rozmiaru); po wywołaniu <code>recvfrom(…)</code> w tej zmiennej znajdzie się faktyczna wielkość zapisanej struktury, jeśli była ona mniejsza niż <code>addrlen</code>; jeśli <code>src_addr</code> było równe <code>NULL</code>, <code>addrlen</code> również musi być <code>NULL</code>em</li>
+            </ul>
+
+            <h3 id="functions-shutdown">int shutdown(int sockfd, int how)</h3>
+            <p>Funkcja ta służy do kończenia komunikacji z użyciem 
+gniazda, wykonując przy okazji czynności przewidziane protokołem dla 
+poprawnego jej zakończenia (np. w przypadku protokołu TCP powoduje 
+wysłanie pakietów z flagą <code>FIN</code>). Pozwala określić&nbsp;którą "stronę" gniazda zamykamy.</p>
+            <p>W przypadku sukcesu <code>shutdown(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>how</code> — określa sposób zamknięcia gniazda:
+                <ul>
+                  <li><code>SHUT_RD</code> — zamyka kanał odczytu z gniazda</li>
+                  <li><code>SHUT_WR</code> — zamyka kanał zapisu do gniazda</li>
+                  <li><code>SHUT_RDWR</code> — zamyka oba kanały komunikacji</li>
+                </ul>
+              </li>
+            </ul>
+
+            <h3 id="functions-close">int close(int sockfd)</h3>
+            <p>Funkcja ta zamyka deskryptor gniazda. Od tego momentu wszelkie operacje na tym deskryptorze są niedozwolone.</p>
+            <p>W przypadku sukcesu <code>close(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+            </ul>
+
+            <h3 id="functions-getsockname">int getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen)</h3>
+            <p>Funkcja ta pozwala uzyskać aktualny adres gniazda. Może 
+być użyteczna, jeśli zażądaliśmy związania gniazda z portem efemerycznym
+ i chcemy się&nbsp;dowiedzieć jaki numer portu został wybrany przez 
+system operacyjny.</p>
+            <p>W przypadku sukcesu <code>getsockname(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>addr</code> — wskaźnik do miejsca w pamięci przygotowanego do przyjęcia struktury z adresem gniazda</li>
+              <li><code>addrlen</code> — wskaźnik do zmiennej określającej zaalokowaną wielkość struktury <code>addr</code> (jeśli struktura opisująca adres gniazda jest większa niż <code>addrlen</code>, zostanie przycięta do tego rozmiaru); po wywołaniu <code>getsockname(…)</code> w tej zmiennej znajdzie się faktyczna wielkość zapisanej struktury, jeśli była ona mniejsza niż addrlen</li>
+            </ul>
+
+            <h3 id="functions-setsockopt">int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen)</h3>
+            <p>Funkcja ta pozwala na ustawianie opcji związanych z 
+gniazdem — charakterystycznych dla samego gniazda lub dla protokołu 
+który gniazdo wykorzystuje.</p>
+            <p>W przypadku sukcesu zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>level</code> — poziom ustawień (rodzaj ustawianych opcji); typowo <code>SOL_SOCKET</code> dla ustawień tyczących się&nbsp;samego gniazda, może pojawić&nbsp;się tu numer protokołu sieciowego</li>
+              <li><code>optname</code> — "nazwa" opcji, czyli stała powiązana z konkretnym parametrem</li>
+              <li><code>optval</code> — wskaźnik do wartości na którą chcemy ustawić&nbsp;daną&nbsp;opcję</li>
+              <li><code>optlen</code> — wielkość wartości z poprzedniego argumentu</li>
+            </ul>
+            <p>Spośród licznych dostępnych opcji najbardziej warte uwagi są:</p>
+            <ul>
+              <li><code>SO_REUSEADDR</code> — decyduje o możliwości 
+związania gniazda "bardziej szczegółowego" (związanego z konkretnym 
+adresem) na adres i port który jest już&nbsp;zajęty w wyniku zbindowania
+ innego gniazda do <code>INADDR_ANY</code> (wszystkie interfejsy hosta);
+ pozwala też&nbsp;na ponowne zbindowanie procesu–serwera TCP na ten sam 
+adres i port natychmiast po jego zrestartowaniu (jeśli to serwer zamyka 
+połączenie jako pierwszy, to standardowo konieczne jest oczekiwanie 
+przez kilkanaście sekund aż&nbsp;minie timeout dla "zabłąkanych 
+pakietów" — w tym czasie próby bindowania bez <code>SO_REUSEADDR</code> zwracają błąd <code>EADDRINUSE</code> — "Address already in use"); przyjmuje zmienną typu <code>int</code> o wartości <code>1</code> (włącz) lub <code>0</code> (wyłącz)</li>
+              <li><code>SO_KEEPALIVE</code> — decyduje o wysyłaniu 
+specjalnych pustych pakietów "keepalive" które zapobiegają zerwaniu 
+połączenia przez urządzenia sieciowe "po drodze" w przypadku gdy przez 
+dłuższy czas nie pojawiają&nbsp;się&nbsp;dane; przyjmuje zmienną typu <code>int</code> o wartości <code>1</code> (włącz) lub <code>0</code> (wyłącz)</li>
+              <li><code>SO_PASSCRED</code> — decyduje o odbieraniu komunikatu sterującego <code>SCM_CREDENTIALS</code>, zawierającego identyfikatory użytkownika i procesu który podłączył się&nbsp;do gniazda lokalnego; przyjmuje zmienną typu <code>int</code> o wartości <code>1</code> (włącz) lub <code>0</code> (wyłącz)</li>
+            </ul>
+
+            <h3 id="functions-getsockopt">int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen)</h3>
+            <p>Funkcja ta pozwala na odczytanie opcji związanych z 
+gniazdem — charakterystycznych dla samego gniazda lub dla protokołu 
+który gniazdo wykorzystuje.</p>
+            <p>W przypadku sukcesu zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>sockfd</code> — numer deskryptora gniazda</li>
+              <li><code>level</code> — poziom ustawień (rodzaj odczytywanych opcji); typowo <code>SOL_SOCKET</code> dla ustawień tyczących się&nbsp;samego gniazda, może pojawić&nbsp;się tu numer protokołu sieciowego</li>
+              <li><code>optname</code> — "nazwa" opcji, czyli stała powiązana z konkretnym parametrem</li>
+              <li><code>optval</code> — wskaźnik do zaalokowanego obszaru pamięci do którego ma trafić odczytana wartość opcji</li>
+              <li><code>optlen</code> — wskaźnik do zmiennej określającej zaalokowaną wielkość <code>optval</code>; po wywołaniu <code>getsockopt(…)</code> w tej zmiennej znajdzie się faktyczna wielkość odczytanej wartości opcji</li>
+            </ul>
+            <p>Możemy odczytywać opcje ustawiane przez <code>setsockopt(…)</code>, a oprócz tego także między innymi:</p>
+            <ul>
+              <li><code>SO_DOMAIN</code> — dziedzinę gniazda; <code>optval</code> typu <code>int</code></li>
+              <li><code>SO_TYPE</code> — tryb komunikacji gniazda; <code>optval</code> typu <code>int</code></li>
+              <li><code>SO_PROTOCOL</code> — protokół wykorzystywany przez gniazdo; <code>optval</code> typu <code>int</code></li>
+              <li><code>SO_ACCEPTCONN</code> — czy gniazdo znajduje się&nbsp;w stanie nasłuchiwania (<code>listen(…)</code>); <code>optval</code> typu <code>int</code> reprezentujące wartość logiczną</li>
+              <li><code>SO_PEERCRED</code> — w przypadku wcześniejszego ustawienia <code>SO_PASSCRED</code>
+ na gnieździe lokalnym opcja zawiera strukturę&nbsp;z identyfikatorami 
+użytkownika i procesu który podłączył się do gniazda (UID, GID oraz 
+PID); typu <code>struct ucred</code> dostępnego w nagłówku <code>sys/socket.h</code> po zdefiniowaniu <code>_GNU_SOURCE</code>:
+                <pre><code>struct ucred {
+    pid_t pid;    /* process ID of the sending process */
+    uid_t uid;    /* user ID of the sending process */
+    gid_t gid;    /* group ID of the sending process */
+};</code></pre>
+              </li>
+            </ul>
+
+            <h3 id="functions-socketpair">int socketpair(int domain, int type, int protocol, int sv[2])</h3>
+            <p>Funkcja służy do utworzenia pary połączonych ze sobą 
+nienazwanych gniazd. Można je wykorzystać na przykład do komunikacji 
+między procesem macierzystym a potomnym.</p>
+            <p>W przypadku sukcesu <code>socketpair(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+            <ul>
+              <li><code>domain</code> — jedyną dopuszczalną na Linuksie opcją jest podanie <code>AF_UNIX</code></li>
+              <li><code>type</code> — jeden z <a href="#properties-type">opisanych wcześniej trybów komunikacji</a>, ewentualnie zORowany z następującymi flagami:
+                <ul>
+                  <li><code>SOCK_NONBLOCK</code> — gniazdo w trybie nieblokującym (ustawienie <code>O_NONBLOCK</code> na deskryptorze gniazda)</li>
+                  <li><code>SOCK_CLOEXEC</code> — zamknij deskryptor gniazda w chwili wywołania <code>execve</code> (ustawienie <code>FD_CLOEXEC</code> na deskryptorze gniazda)</li>
+                </ul>
+              </li>
+              <li><code>protocol</code> — podajemy <code>0</code>, czyli automatyczny wybór</li>
+              <li><code>sv</code> — tablica w której zostaną umieszczone deskryptory obu gniazd; są nierozróżnialne</li>
+            </ul>
+          </div>
+          <div>
+            <h1 id="monitor" class="page-header">Monitorowanie wielu deskryptorów</h1>
+            <p>Czasami zachodzi potrzeba jednoczesnego oczekiwania na 
+zdarzenia (możliwość&nbsp;zapisu, możliwość odczytu) na wielu 
+deskryptorach. Istnieją dwa podstawowe mechanizmy pozwalające na wydajne
+ (czytaj: nie ma potrzeby iterowania się cały czas po nieblokujących 
+deskryptorach) oczekiwanie na zdarzenia na zbiorze deskryptorów.</p>
+
+            <h3 id="monitor-epoll">Z wykorzystaniem mechanizmu epoll</h3>
+            <p>epoll jest najmłodszym z mechanizmów pozwalających na 
+monitorowanie wielu deskryptorów plików. Nie posiada ograniczeń jak 
+chodzi o ilość monitrowanych deskryptorów (w odróżnieniu od funkcji <code>select(…)</code>) i wszystkie monitorowane deskryptory obsługuje w czasie stałym (<code>poll(…)</code> stosuje liniowe przeszukiwanie). Jest wzorowany na mechanizmie kqueue obecnym we FreeBSD.</p>
+            <p>Wszystkie poniższe funkcje i typy zdefiniowane są w pliku <code>sys/epoll.h</code>.</p>
+
+            <p>Aby skorzystać&nbsp;z mechanizmu epoll, należy najpierw utworzyć&nbsp;instancję mechanizmu monitorowania.</p>
+
+            <h4>int epoll_create1(int flags)</h4>
+            <p>Funkcja zwraca numer deskryptora pliku, który umożliwia 
+skonfigurowanie monitorowania innych deskryptorów i uruchomienie 
+właściwego oczekiwania na zdarzenia. Po skończonej pracy instancję 
+mechanizmu epoll można usunąć wywołując na tym deskryptorze operację <code>close(…)</code>.</p>
+            <ul>
+              <li><code>flags</code> — opcjonalne flagi:
+                <ul>
+                  <li><code>EPOLL_CLOEXEC</code> — zamknij deskryptor w chwili wywołania <code>execve</code> (ustawienie <code>FD_CLOEXEC</code> na deskryptorze gniazda)</li>
+                </ul>
+              </li>
+              <li>Gdy <code>flags</code> jest ustawione na 0, to <code>epoll_create1(…)</code> działa dokładnie tak samo jak <code>epoll_create(…)</code> (z dokładnością do pominięcia nieistotnego argumentu <code>size</code>).</li>
+            </ul>
+
+            <h4>int epoll_create(int size)</h4>
+            <p><strong>Wariant przestarzały.</strong> Argument <code>size</code>
+ służył do podpowiedzenia jądru systemu na ile monitorowanych 
+deskryptorów powinno być przygotowane; obecnie jest ignorowany (jądro 
+powiększa odpowiednie struktury dynamicznie), ale ze względów 
+kompatybilności wstecznej należy podawać jako <code>size</code> wartości większe od zera.</p>
+            <p>Zwracana wartość ma identyczne znaczenie jak w przypadku <code>epoll_create1(…)</code>.</p>
+
+            <p>Po utworzeniu instancji mechanizmu należy zarejestrować w nim deskryptory które chcemy obserwować.</p>
+
+            <h4>int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)</h4>
+            <p>Funkcja służy do zarejestrowania/wyrejestrowania/zmiany 
+sposobu obsługi podanego deskryptora pliku przez 
+daną&nbsp;instancję&nbsp;epoll.</p>
+            <ul>
+              <li><code>epfd</code> — numer deskryptora instancji mechanizmu epoll (zwrócony z <code>epoll_create(…)</code>)</li>
+              <li><code>op</code> — rodzaj operacji do wykonania:</li>
+                <ul>
+                  <li><code>EPOLL_CTL_ADD</code> — zarejestrowanie deskryptora pliku do monitorowania</li>
+                  <li><code>EPOLL_CTL_MOD</code> — zmiana sposobu monitorowania deskryptora pliku</li>
+                  <li><code>EPOLL_CTL_DEL</code> — wyrejestrowanie deskryptora pliku z monitorowania</li>
+                </ul>
+              
+              <li><code>fd</code> — numer deskryptora pliku w odniesieniu do którego chcemy wykonać operację</li>
+              <li><code>event</code> — wskaźnik na strukturę <code>struct epoll_event</code>
+ opisującą sposób monitorowania deskryptora i dane dodatkowe które mają 
+być zwracane w przypadku wystąpienia zdarzeń na deskryptorze</li>
+            </ul>
+            <p>W przypadku sukcesu <code>epoll_ctl(…)</code> zwraca <code>0</code>, a w przypadku błędu <code>-1</code> i ustawia <code>errno</code>.</p>
+
+            <h4>struct epoll_event</h4>
+            <pre><code>struct epoll_event {
+    uint32_t     events;      /* Epoll events */
+    epoll_data_t data;        /* User data variable */
+};
+
+typedef union epoll_data {
+    void        *ptr;
+    int          fd;
+    uint32_t     u32;
+    uint64_t     u64;
+} epoll_data_t;</code></pre>
+            <p>Pole <code>events</code> struktury to maska bitowa, w której ustawiane są szczegóły związane ze sposobem monitorowania deskryptora:</p>
+            <ul>
+              <li><code>EPOLLIN</code> — możliwy odczyt</li>
+              <li><code>EPOLLOUT</code> — możliwy zapis</li>
+              <li><code>EPOLLPRI</code> — pojawiły się&nbsp;dane priorytetowe</li>
+              <li><code>EPOLLRDHUP</code> — drugi koniec gniazda został odłączony (klient rozłączył się lub zamknął swój kanał przeznaczony do zapisu)</li>
+              <li><code>EPOLLET</code> (<b>E</b>dge <b>T</b>riggered) — 
+domyślnie epoll działa w trybie level triggered, czyli jeśli np. 
+zarejestrowaliśmy się na zdarzenie "możliwy odczyt" i po otrzymaniu 
+powiadomienia nie odczytaliśmy wszystkich oczekujących danych, to 
+powiadomienie zostanie powtórzone; w wariancie edge triggered 
+powiadomienie emitowane jest jednokrotnie, w momencie wystąpienia 
+zdarzenia</li>
+              <li><code>EPOLLONESHOT</code> — powiadamia tylko o najbliższym zdarzeniu na danym deskryptorze (aby otrzymać kolejne, należy ponownie go zarejestrować)</li>
+              <li><code>EPOLLEXCLUSIVE</code> — w sytuacji kiedy kilka 
+instancji epoll monitoruje ten sam deskryptor, domyślnie wszystkie 
+otrzymują powiadomienia o zdarzeniach na nim; ta flaga pozwala na to by 
+zdarzenia trafiły tylko do tych instancji, które użyły flagi <code>EPOLLEXCLUSIVE</code></li>
+            </ul>
+            <p>Pole <code>data</code> zawiera unię, w której możemy 
+przekazać informację jaką ma nam zwrócić epoll w przypadku wystąpienia 
+zdarzenia na deskryptorze. Ta informacja powinna umożliwiać nam 
+ustalenie na którym deskryptorze miało miejsce zdarzenie — epoll nie 
+przekazuje nam tej informacji "sam z siebie"! (Typowo ustawiamy w tej 
+unii pole <code>fd</code> na identyczą wartość, jak argument <code>fd</code> w wywołaniu <code>epoll_ctl(…)</code> w którym odwołujemy się&nbsp;do struktury z tą unią.)</p>
+
+            <h4>int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)</h4>
+            <p>Funkcja oczekuje na zdarzenia na które zarejestrowano się
+ w danej instancji epoll i zapisuje we wskazanym obszarze powiadomienia o
+ nich. Oczekiwanie może zostać przerwane przez sygnał.</p>
+            <p>Funkcja zwraca ilość zdarzeń które faktycznie zostały zapisane w podanym obszarze pamięci lub zwraca <code>-1</code> i ustawia <code>errno</code> w przypadku wystąpienia błędu.
+            </p><ul>
+              <li><code>epfd</code> — numer deskryptora instancji mechanizmu epoll (zwrócony z <code>epoll_create(…)</code>)</li>
+              <li><code>events</code> — wskaźnik na zaalokowaną tablicę elementów <code>struct epoll_event</code>, w której funkcja ma umieścić powiadomienia o zdarzeniach</li>
+              <li><code>maxevents</code> — ilość&nbsp;elementów zaalokowanej przez nas tablicy</li>
+              <li><code>timeout</code> — maksymalny czas oczekiwania na zdarzenia (wyrażony w milisekundach); wartość&nbsp;<code>0</code> oznacza że funkcja ma natychmiast powrócić, jeśli nie ma oczekujących zdarzeń, zaś&nbsp;wartość <code>-1</code> oznacza oczekiwanie w nieskończoność</li>
+            </ul>
+
+            <h4>int epoll_pwait(int epfd, struct epoll_event *events, int maxevents, int timeout, const sigset_t *sigmask)</h4>
+            <p>Działa jak <code>epoll_pwait(…)</code>, ale dodatkowo 
+przyjmuje maskę sygnałów do ustawienia w wątku na czas oczekiwania na 
+zdarzenia (można to porównać do atomowego wykonania ustawienia podanej 
+maski, wykonania <code>epoll_wait(…)</code>, a następnie przywrócenia poprzedniej).</p>
+
+            <h3 id="monitor-poll">Z wykorzystaniem funkcji poll(…)</h3>
+            <p><code>poll(…)</code> działa niemalże identycznie jak <code>select(…)</code>, jest jednak w stanie monitorować dowolną ilość deskryptorów (dla <code>select(…)</code> istnieje ograniczenie ustalane na etapie kompilacji biblioteki standardowej C), stąd stosowanie <code>poll(…)</code> jest preferowane względem <code>select(…)</code>.</p>
+            <p>Wszystkie poniższe funkcje i typy zdefiniowane są&nbsp;w pliku <code>poll.h</code>. Dodatkowo funkcja <code>ppoll(…)</code> wymaga zdefiniowania <code>_GNU_SOURCE</code> przed dołączeniem nagłówka.</p>
+
+            <h4>struct pollfd</h4>
+            <p>W przypadku <code>poll(…)</code> interesujące nas 
+zdarzenia definiujemy dla każdego deskryptora z osobna, nie mamy dzięki 
+temu ograniczenia na numer deskryptora który chcemy monitorować. Po 
+wykonaniu funkcji również dla każdego deskryptora z osobna otrzymujemy 
+informacje jakie zdarzenia na nim wystąpiły.
+            </p><pre><code>struct pollfd {
+    int   fd;         /* file descriptor */
+    short events;     /* requested events */
+    short revents;    /* returned events */
+};</code></pre>
+            <ul>
+              <li><code>fd</code> — numer deskryptora (jeśli będzie 
+ujemny, struktura zostanie pominięta — można to wykorzystać do szybkiego
+ jednorazowego "wyłączenia" monitorowania konkretnego deskryptora przed <code>poll(…)</code> przez pomnożenie jego numeru przez <code>-1</code>)</li>
+              <li><code>events</code> — maska bitowa wartości określających monitorowane zdarzenia:
+                <ul>
+                  <li><code>POLLIN</code> — możliwy odczyt</li>
+                  <li><code>POLLOUT</code> — możliwy zapis</li>
+                  <li><code>POLLURG</code> — pojawiły się&nbsp;do odczytania dane priorytetowe</li>
+                  <li><code>POLLRDHUP</code> (pod warunkiem zdefiniowania <code>_GNU_SOURCE</code>) — drugi koniec gniazda został odłączony (klient rozłączył się&nbsp;lub zamknął swój kanał przeznaczony do zapisu)</li>
+                </ul>
+              </li>
+              <li><code>revents</code> — maska bitowa wartości 
+określających jakie zdarzenia zaszły (uzupełniana po wywołaniu funkcji),
+ może przyjmować&nbsp;wartości takie jak <code>events</code> a dodatkowo:
+                <ul>
+                  <li><code>POLLERR</code> — wystąpił błąd</li>
+                  <li><code>POLLHUP</code> — nastąpiło rozłączenie</li>
+                  <li><code>POLLNVAL</code> — nieprawidłowy deskryptor (nie jest otwarty)</li>
+                </ul>
+            </li></ul>
+
+            <h4>int poll(struct pollfd *fds, nfds_t nfds, int timeout)</h4>
+            <p>Funkcja oczekuje na zdarzenia, a po ich wystąpieniu 
+aktualizuje struktury które opisywały zdarzenia na które oczekujemy. 
+Oczekiwanie może zostać przerwane przez sygnał.</p>
+            <p>Funkcja zwraca ilość deskryptorów na których wystąpiły obserwowane zmiany (zostanie zwrócone <code>0</code> jeśli upłynął określony przez nas limit czasu i nie wystąpiło żadne zdarzenie) lub <code>-1</code> i ustawia <code>errno</code> w przypadku wystąpienia błędu.</p>
+            <ul>
+              <li><code>fds</code> — tablica struktur zawierających 
+informacje jakimi zdarzeniami na jakim deskryptorze jesteśmy 
+zainteresowani oraz miejsce na zapisanie jakie zdarzenia wystąpiły</li>
+              <li><code>nfds</code> — ilość&nbsp;struktur w tablicy (długość&nbsp;tablicy)</li>
+              <li><code>timeout</code> — maksymalny czas oczekiwania na zdarzenia podany w milisekundach (wartość ujemna oznacza oczekiwanie w nieskończoność)</li>
+            </ul>
+
+            <h4>int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout_ts, const sigset_t *sigmask)</h4>
+            <p>Działa jak <code>poll(…)</code>, ale dodatkowo przyjmuje 
+maskę&nbsp;sygnałów do ustawienia na czas oczekiwania na zdarzenia 
+(można to porównać&nbsp;do atomowego wykonania ustawienia podanej maski,
+ wykonania <code>poll(…)</code>, a następnie przywrócenia poprzedniej). Dodatkowo timeout jest strukturą zamiast liczbą.</p>
+            <ul>
+              <li><code>timeout_ts</code> — zdefiniowana w nagłówku <code>sys/time.h</code> struktura opisująca maksymalny czas oczekiwania na zdarzenia
+                <pre><code>struct timespec {
+    long    tv_sec;         /* seconds */
+    long    tv_nsec;        /* nanoseconds */
+};</code></pre>
+              </li>
+              <li><code>sigmask</code> — wskaźnik na zbiór sygnałów do zamaskowania (<code>NULL</code> oznacza zignorowanie tego argumentu)</li>
+            </ul>
+
+            <h3 id="monitor-select">Z wykorzystaniem funkcji select(…)</h3>
+            <p>Wszystkie poniższe funkcje i typy zdefiniowane są w pliku nagłówkowym <code>sys/select.h</code>.</p>
+
+            <h4>fd_set</h4>
+            <p>Typ o stałym rozmiarze pozwalający na przechowywanie 
+zbioru deskryptorów plików z których numer żadnego nie przekracza 
+wartości stałej <code>FD_SETSIZE</code>.</p>
+
+            <h4>void FD_CLR(int fd, fd_set *set)</h4>
+            <p>Funkcja służy do usunięcia wskazanego deskryptora <code>fd</code> ze zbioru <code>set</code>.</p>
+
+            <h4>int FD_ISSET(int fd, fd_set *set)</h4>
+            <p>Funkcja służy do sprawdzenia czy wskazany deskryptor <code>fd</code> znajduje się&nbsp;w zbiorze <code>set</code>.</p>
+
+            <h4>void FD_SET(int fd, fd_set *set)</h4>
+            <p>Funkcja służy do dodania wskazanego deskryptora <code>fd</code> do zbioru <code>set</code>.</p>
+
+            <h4>void FD_ZERO(fd_set *set)</h4>
+            <p>Funkcja służy do wyczyszczenia zbioru <code>set</code>.</p>
+
+            <h4>int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout)</h4>
+            <p>Funkcja monitoruje trzy wskazane zbiory deskryptorów 
+plików pod kątem możliwości natychmiastowego (nieblokującego) wykonania 
+na nich odpowiedniej operacji (dla <code>readfds</code> — odczytu; może być to również odczyt końca pliku <code>EOF</code>, dla <code>writefds</code> — zapisu, a w przypadku <code>exceptfds</code>
+ monitorowane jest wystąpienie sytuacji wyjątkowych). Jednocześnie, 
+możemy określić maksymalny czas oczekiwania na zdarzenia na 
+monitorowanych deskryptorach.</p>
+            <p>Funkcja zwraca sumaryczną ilość deskryptorów na których wystąpiły obserwowane zmiany (zostanie zwrócone <code>0</code> jeśli upłynął określony przez nas limit czasu i nie wystąpiło żadne zdarzenie) lub <code>-1</code> i ustawia <code>errno</code>
+ w przypadku wystąpienia błędu. Dodatkowo w zbiorach przekazanych jako 
+argumenty zostaną pozostawione jedynie te deskryptory na których zaszło 
+odpowiednie zdarzenie, wiedząc zatem jakie deskryptory dodawaliśmy do 
+zbiorów możemy się po nich przeiterować wywołując dla każdego <code>FD_ISSET(…)</code> w celu sprawdzenia czy to właśnie on spowodował powrót z <code>select(…)</code>.</p>
+            <ul>
+              <li><code>nfds</code> — największy numer deskryptora w naszych zbiorach powiększony o <code>1</code></li>
+              <li><code>readfds</code> — wskaźnik na zbiór deskryptorów monitorowanych pod kątem możliwości odczytu lub <code>NULL</code> jeśli tego nie monitorujemy</li>
+              <li><code>writefds</code> — wskaźnik na zbiór deskryptorów monitorowanych pod kątem możliwości zapisu lub <code>NULL</code> jeśli tego nie monitorujemy</li>
+              <li><code>exceptfds</code> — wskaźnik na zbiór deskryptorów monitorowanych pod kątem zdarzeń wyjątkowy lub <code>NULL</code> jeśli tego nie monitorujemy</li>
+              <li><code>timeout</code> — wskaźnik na strukturę (z nagłówka <code>sys/time.h</code>) opisującą maksymalny czas oczekiwania na zdarzenia lub <code>NULL</code> jeśli ustalamy limitu; wypełnienie jej zerami sprawia że <code>select(…)</code>
+ nie czeka na zdarzenia, a jedynie zwraca nam (przez 
+modyfikację&nbsp;zbiorów) informacje na temat tego które deskryptory 
+gotowe są do poszczególnych operacji; po powrocie z wywołania funkcji 
+struktura będzie zawierała informacje na temat czasu przez jaki 
+oczekiwano by jeszcze na zdarzenia gdyby się takie nie pojawiły
+                <pre><code>struct timeval {
+    time_t         tv_sec;     /* seconds */
+    suseconds_t    tv_usec;    /* microseconds */
+};</code></pre>
+              </li>
+            </ul>
+
+            <h4>int pselect(int nfds, fd_set *readfds, fd_set *writefds,
+ fd_set *exceptfds, const struct timespec *timeout, const sigset_t 
+*sigmask)</h4>
+            <p>Działa jak <code>select(…)</code>, ale dodatkowo 
+przyjmuje maskę&nbsp;sygnałów do ustawienia na czas oczekiwania na 
+zdarzenia (można to porównać&nbsp;do atomowego wykonania ustawienia 
+podanej maski, wykonania <code>select(…)</code>, a następnie przywrócenia poprzedniej). Dodatkowo przyjmuje nieco inną&nbsp;strukturę opisującą timeout.</p>
+            <ul>
+              <li><code>timeout</code> — jak dla <code>timeout</code> w <code>select(…)</code>, tylko format minimalnie inny (nanosekundy zamiast mikrosekund); również pochodzi z nagłówka <code>sys/time.h</code>
+                <pre><code>struct timespec {
+    long    tv_sec;         /* seconds */
+    long    tv_nsec;        /* nanoseconds */
+};</code></pre>
+              </li>
+              <li><code>sigmask</code> — wskaźnik na zbiór sygnałów do zamaskowania (<code>NULL</code> oznacza zignorowanie tego argumentu)</li>
+            </ul>
+          </div>
+          <div>
+            <h1 id="sequence" class="page-header">Typowy "cykl życia" gniazda</h1>
+
+            <h3 id="sequence-connection">Gniazdo połączeniowe</h3>
+            <table class="table table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>Serwer</th>
+                  <th>Klient</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><a href="#functions-socket">socket</a></td>
+                  <td><a href="#functions-socket">socket</a></td>
+                </tr>
+                <tr>
+                  <td><a href="#functions-bind">bind</a></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><a href="#functions-listen">listen</a></td>
+                  <td><a href="#functions-connect">connect</a></td>
+                </tr>
+                <tr>
+                  <td><a href="#functions-accept">accept</a></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>powtarzające się&nbsp;<a href="#functions-send">send</a>/<a href="#functions-recv">recv</a></td>
+                  <td>powtarzające się&nbsp;<a href="#functions-send">send</a>/<a href="#functions-recv">recv</a></td>
+                </tr>
+                <tr>
+                  <td><a href="#functions-shutdown">shutdown</a></td>
+                  <td><a href="#functions-shutdown">shutdown</a></td>
+                </tr>
+                <tr>
+                  <td><a href="#functions-close">close</a></td>
+                  <td><a href="#functions-close">close</a></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 id="sequence-connectionless">Gniazdo bezpołączeniowe</h3>
+            <table class="table table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>Serwer</th>
+                  <th>Klient</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><a href="#functions-socket">socket</a></td>
+                  <td><a href="#functions-socket">socket</a></td>
+                </tr>
+                <tr>
+                  <td><a href="#functions-bind">bind</a></td>
+                  <td><a href="#functions-bind">bind</a> <em>(gdy uniksowe gniazdo datagramowe)</em></td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td><a href="#functions-connect">connect</a></td>
+                </tr>
+                <tr>
+                  <td>powtarzające się&nbsp;<a href="#functions-send">sendto</a>/<a href="#functions-recv">recvfrom</a></td>
+                  <td>powtarzające się&nbsp;<a href="#functions-send">send</a>/<a href="#functions-recv">recv</a></td>
+                </tr>
+                <tr>
+                  <td><a href="#functions-close">close</a></td>
+                  <td><a href="#functions-close">close</a></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h1 id="tools" class="page-header">Przydatne narzędzia</h1>
+            <p>W trakcie korzystania z gniazd wielokrotnie zachodzi 
+potrzeba sprawdzenia poprawności działania naszych programów lub 
+ustalenia miejsca występowania problemu. Możemy w tym celu skorzystać z 
+wielu programów — poniżej wymieniono pewne podstawowe.</p>
+
+            <h3 id="tools-ss">ss (część pakietu narzędzi iproute)</h3>
+            <p><strong>Wywołanie:</strong> <code>ss [opcje] [filtr]</code></p>
+            <p>Pozwala na wyświetlenie listy obecnie nawiązanych 
+połączeń oraz listy aktualnie nasłuchujących gniazd wraz z ich 
+parametrami. Komenda domyślnie wyświetla listę aktualnie nawiązanych 
+połączeń. Nazwy gniazd abstrakcyjnych UNIX poprzedzone są @.</p>
+            <ul>
+              <li><code>-l</code>/<code>--listening</code> — wyświetl listę nasłuchujących gniazd</li>
+              <li><code>-p</code>/<code>--processes</code> — wyświetl informacje na temat programu korzystającego z gniazda (PID i nazwa)</li>
+              <li><code>-n</code>/<code>--numeric</code> — nawet jeśli do numeru portu przypisana jest nazwana usługa, pokaż go jako numer</li>
+              <li><code>-t</code>/<code>--tcp</code> — wyświetl tylko gniazda korzystające z protokołu TCP</li>
+              <li><code>-u</code>/<code>--udp</code> — wyświetl tylko gniazda korzystające z protokołu UDP</li>
+              <li><code>-x</code>/<code>--unix</code> — wyświetl tylko gniazda w domenie lokalnych gniazd UNIX</li>
+              <li><code>-4</code>/<code>--ipv4</code> — wyświetl tylko gniazda w domenie IPv4</li>
+              <li><code>-6</code>/<code>--ipv6</code> — wyświetl tylko gniazda w domenie IPv6</li>
+              <li><code>-f typ</code>/<code>--family=typ</code> — wyświetl tylko gniazda podanego rodzaju (unix, inet, inet6, …); argument można podać&nbsp;wielokrotnie; <code>-x</code>, <code>-4</code> i <code>-6</code> to aliasy</li>
+            </ul>
+
+            <h3 id="tools-netstat">netstat (część pakietu narzędzi net-tools)</h3>
+            <p><strong>Uwaga:</strong> zgodnie z manualem — <em>This program is mostly obsolete. Replacement for netstat is ss.</em></p>
+            <p><strong>Wywołanie:</strong> <code>netstat [opcje]</code></p>
+            <p>Pozwala na wyświetlenie listy obecnie nawiązanych 
+połączeń oraz listy aktualnie nasłuchujących gniazd wraz z ich 
+parametrami. Komenda domyślnie wyświetla listę aktualnie nawiązanych 
+połączeń. Nazwy gniazd abstrakcyjnych UNIX poprzedzone są&nbsp;<code>@</code>.</p>
+            <ul>
+              <li><code>-l</code>/<code>--listening</code> — wyświetl listę nasłuchujących gniazd</li>
+              <li><code>-p</code>/<code>--programs</code> — wyświetl informacje na temat programu korzystającego z gniazda (PID i nazwa)</li>
+              <li><code>--numeric-ports</code> — nawet jeśli do numeru portu przypisana jest nazwana usługa, pokaż go jako numer</li>
+              <li><code>-t</code>/<code>--tcp</code> — wyświetl tylko gniazda korzystające z protokołu TCP</li>
+              <li><code>-u</code>/<code>--udp</code> — wyświetl tylko gniazda korzystające z protokołu UDP</li>
+              <li><code>-x</code>/<code>--unix</code> — wyświetl tylko gniazda w domenie lokalnych gniazd UNIX</li>
+              <li><code>-4</code>/<code>--inet</code> — wyświetl tylko gniazda w domenie IPv4</li>
+              <li><code>-6</code>/<code>--inet6</code> — wyświetl tylko gniazda w domenie IPv6</li>
+              <li><code>-A typ1,typ2,…</code>/<code>--protocol=typ1,typ2,…</code> — wyświetl tylko gniazda podanego rodzaju (unix, inet, inet6, …); argument można podać&nbsp;wielokrotnie; <code>-x</code>, <code>-4</code> i <code>-6</code> to aliasy</li>
+            </ul>
+
+            <h3 id="tools-telnet">telnet</h3>
+            <p><strong>Wywołanie (wariant BSD):</strong> <code>telnet host [port]</code></p>
+            <p>Pozwala na nawiązanie połączenia z gniazdami 
+korzystającymi z protokołu TCP. Domyślnie połączenie nawiązywanie na 
+porcie 23, który jest standardowym portem wykorzystywanym przez usługę 
+Telnet (zdalny terminal). Możliwość nawiązywania połączeń z innymi 
+usługami sieciowymi jest de facto "skutkiem ubocznym" działania tego 
+protokołu. Nie nadaje się do ręcznego korzystania z protokołów 
+przesyłających dane inaczej niż w formie czytelnego dla człowieka tekstu
+ (ale można np. pomóc sobie bash-em i użyć go do zamiany zapisu 
+szesnastkowego na konkretne wartości: <code>echo -e "\x12\x13" | telnet 127.0.0.1 31415</code>).</p>
+
+            <h3 id="tools-netcat">netcat</h3>
+            <p><strong>Wywołanie (wariant Ncat z projektu Nmap):</strong> <code>nc [opcje] [host] [port]</code></p>
+            <p>Pozwala na nawiązywanie połączeń z gniazdami 
+korzystającymi z TCP, UDP i lokalnej komunikacji UNIX. Umożliwia również
+ przyjmowanie połączeń (może pracować jako serwer). Domyślnie netcat 
+pracuje jako klient korzystający z TCP.</p>
+            <ul>
+              <li><code>-l</code> — pracuj jako serwer</li>
+              <li><code>-u</code>/<code>--udp</code> — używaj UDP zamiast TCP</li>
+              <li><code>-U</code>/<code>--unixsock</code> — używaj lokalnej komunikacji UNIX zamiast TCP</li>
+                <ul>
+                  <li>nie podajemy portu, a jako host podajemy ścieżkę do gniazda</li>
+                  <li>domyślnie gniazdo pracuje strumieniowo, użycie <code>-u</code>/<code>--udp</code> przełącza je w tryb datagramowy</li>
+                </ul>
+              
+            </ul>
+          </div>
+          <div>
+            <h1 id="bibliography" class="page-header">Bibliografia</h1>
+            <ul>
+              <li>W. Richard Stevens, Bill Fenner, Andrew M. Rudoff — <em>UNIX Network Programming: The Sockets Networking API</em>, tom 1</li>
+              <li><a href="http://www.unixguide.net/network/socketfaq/">UNIX Socket FAQ</a></li>
+              <li><a href="https://www.kernel.org/doc/man-pages/">The Linux man-pages project</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="bs-docs-sidebar hidden-print" role="complementary">
+            <ul class="nav bs-docs-sidenav">
+              <li><a href="#introduction">Wprowadzenie</a></li>
+              <li><a href="#properties">Podstawowe cechy</a>
+                <ul class="nav">
+                <li><a href="#properties-domain">Dziedzina</a></li>
+                <li><a href="#properties-type">Tryb komunikacji</a></li>
+                <li><a href="#properties-protocol">Protokół</a></li>
+                </ul>
+              </li>
+              <li><a href="#addresses">Adresy gniazd</a>
+                <ul class="nav">
+                <li><a href="#addresses-inet">AF_INET</a></li>
+                <li><a href="#addresses-inet6">AF_INET6</a></li>
+                <li><a href="#addresses-unix">AF_UNIX</a></li>
+                </ul>
+              </li>
+              <li><a href="#address-functions">Funkcje związane z adresami</a>
+                <ul class="nav">
+                  <li><a href="#address-functions-inet_aton">inet_aton</a></li>
+                  <li><a href="#address-functions-inet_ntoa">inet_ntoa</a></li>
+                  <li><a href="#address-functions-inet_pton">inet_pton</a></li>
+                  <li><a href="#address-functions-inet_ntop">inet_ntop</a></li>
+                  <li><a href="#address-functions-gethostbyname">gethostbyname</a></li>
+                  <li><a href="#address-functions-gethostname">gethostname</a></li>
+                </ul>
+              </li>
+              <li><a href="#endianess-functions">Funkcje związane z kolejością bajtów</a>
+                <ul class="nav">
+                  <li><a href="#endianess-functions-htobeNN">htobeNN</a></li>
+                  <li><a href="#endianess-functions-htoleNN">htoleNN</a></li>
+                  <li><a href="#endianess-functions-beNNtoh">beNNtoh</a></li>
+                  <li><a href="#endianess-functions-leNNtoh">leNNtoh</a></li>
+                  <li><a href="#endianess-functions-htonl">htonl</a></li>
+                  <li><a href="#endianess-functions-htons">htons</a></li>
+                  <li><a href="#endianess-functions-ntohl">ntohl</a></li>
+                  <li><a href="#endianess-functions-ntohs">ntohs</a></li>
+                </ul>
+              </li>
+              <li><a href="#functions">Funkcje do obsługi gniazd</a>
+                <ul class="nav">
+                  <li><a href="#functions-socket">socket</a></li>
+                  <li><a href="#functions-bind">bind</a></li>
+                  <li><a href="#functions-listen">listen</a></li>
+                  <li><a href="#functions-connect">connect</a></li>
+                  <li><a href="#functions-accept">accept, accept4</a></li>
+                  <li><a href="#functions-send">write, send, sendto, sendmsg</a></li>
+                  <li><a href="#functions-recv">read, recv, recvfrom, recvmsg</a></li>
+                  <li><a href="#functions-shutdown">shutdown</a></li>
+                  <li><a href="#functions-close">close</a></li>
+                  <li><a href="#functions-getsockname">getsockname</a></li>
+                  <li><a href="#functions-setsockopt">setsockopt</a></li>
+                  <li><a href="#functions-getsockopt">getsockopt</a></li>
+                  <li><a href="#functions-socketpair">socketpair</a></li>
+                </ul>
+              </li>
+              <li><a href="#monitor">Monitorowanie wielu deskryptorów</a>
+                <ul class="nav">
+                  <li><a href="#monitor-epoll">epoll</a></li>
+                  <li><a href="#monitor-poll">poll</a></li>
+                  <li><a href="#monitor-select">select</a></li>
+                </ul>
+              </li>
+              <li><a href="#sequence">Typowy "cykl życia" gniazda</a>
+                <ul class="nav">
+                  <li><a href="#sequence-connection">Połączeniowe</a></li>
+                  <li><a href="#sequence-connectionless">Bezpołączeniowe</a></li>
+                </ul>
+              </li>
+              <li><a href="#tools">Przydatne narzędzia</a>
+                <ul class="nav">
+                  <li><a href="#tools-ss">ss</a></li>
+                  <li><a href="#tools-netstat">netstat</a></li>
+                  <li><a href="#tools-telnet">telnet</a></li>
+                  <li><a href="#tools-netcat">netcat</a></li>
+                </ul>
+              </li>
+              <li><a href="#bibliography">Bibliografia</a></li>
+            </ul>
+            <a class="back-to-top" href="#top">Powrót na górę</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="Gniazda_files/jquery.html"></script>
+    <script src="Gniazda_files/bootstrap_002.html"></script>
+    <script src="Gniazda_files/docs_002.html"></script>
+  
+
+</body></html>
